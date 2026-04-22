@@ -9,7 +9,7 @@ const logger = createLogger(SERVICE_NAME);
 class DeploymentRepository {
   async create(
     data: Pick<IDeployment, "sourceType" | "sourceRef" | "name">,
-    session?: ClientSession
+    session?: ClientSession,
   ): Promise<IDeployment> {
     const [doc] = await DeploymentModel.create([data], { session });
 
@@ -43,12 +43,12 @@ class DeploymentRepository {
         "imageTag" | "containerId" | "hostPort" | "url" | "lastError"
       >
     >,
-    session?: ClientSession
+    session?: ClientSession,
   ): Promise<IDeployment | null> {
     const doc = await DeploymentModel.findByIdAndUpdate(
       id,
       { $set: { status, ...extra } },
-      { new: true, session }
+      { new: true, session },
     ).lean();
 
     logger.debug("deployment_repository_status_updated", {
@@ -63,12 +63,12 @@ class DeploymentRepository {
 
   async incrementAttempts(
     id: string | Types.ObjectId,
-    session?: ClientSession
+    session?: ClientSession,
   ): Promise<number> {
     const doc = await DeploymentModel.findByIdAndUpdate(
       id,
       { $inc: { attempts: 1 } },
-      { new: true, session }
+      { new: true, session },
     ).lean();
 
     return doc?.attempts ?? 0;
@@ -77,12 +77,27 @@ class DeploymentRepository {
   async findAllocatedPorts(): Promise<number[]> {
     const docs = await DeploymentModel.find(
       { hostPort: { $exists: true } },
-      { hostPort: 1 }
+      { hostPort: 1 },
     ).lean();
 
     return docs
       .map((d) => d.hostPort)
       .filter((p): p is number => p !== undefined);
+  }
+
+  async markCompleted(
+    id: string | Types.ObjectId,
+    session?: ClientSession,
+  ): Promise<IDeployment | null> {
+    return this.updateStatus(id, "completed", undefined, session);
+  }
+
+  async markFailed(
+    id: string | Types.ObjectId,
+    error: string,
+    session?: ClientSession,
+  ): Promise<IDeployment | null> {
+    return this.updateStatus(id, "failed", { lastError: error }, session);
   }
 }
 

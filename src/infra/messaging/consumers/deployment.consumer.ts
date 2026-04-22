@@ -5,7 +5,11 @@ import { createLogger } from "../../../shared/utils/logger";
 import { SERVICE_NAME, RABBITMQ_CONFIG } from "../../../shared/constants";
 import { deploymentRepository } from "../../../domains/deployment/deployment.repository";
 import { deadLetterService } from "../../../domains/dead-letter/dead-letter.service";
-import type { DeploymentRequestedEvent } from "../../../shared/types";
+import type {
+  DeploymentCompletedEvent,
+  DeploymentFailedEvent,
+  DeploymentRequestedEvent,
+} from "../../../shared/types";
 import { PipelineRunner } from "../../../domains/deployment/ipeline/runner";
 
 const logger = createLogger(SERVICE_NAME);
@@ -16,12 +20,15 @@ const topicHandlers: Record<
   (data: unknown, channel: Channel, msg: ConsumeMessage) => Promise<void>
 > = {
   [ROUTING_KEYS.DEPLOYMENT_REQUESTED]: handleDeploymentRequested,
+  [ROUTING_KEYS.DEPLOYMENT_COMPLETED]: handleDeploymentCompleted, // add
+  [ROUTING_KEYS.DEPLOYMENT_FAILED]: handleDeploymentFailed, // add
+  [ROUTING_KEYS.DEPLOYMENT_DEAD]: handleDeploymentDead,
 };
 
 async function handleDeploymentRequested(
   data: unknown,
   channel: Channel,
-  msg: ConsumeMessage
+  msg: ConsumeMessage,
 ): Promise<void> {
   const event = data as DeploymentRequestedEvent;
   const { deploymentId, sourceType, sourceRef, requestId } = event;
@@ -91,6 +98,106 @@ async function handleDeploymentRequested(
     }
   }
 }
+async function handleDeploymentCompleted(
+  data: unknown,
+  channel: Channel,
+  msg: ConsumeMessage,
+): Promise<void> {
+  const event = data as DeploymentCompletedEvent;
+  const { deploymentId, requestId } = event;
+
+  try {
+    await deploymentRepository.markCompleted(deploymentId);
+
+    logger.info("deployment_completed", {
+      event: "deployment_completed",
+      service: SERVICE_NAME,
+      deploymentId,
+      requestId,
+    });
+
+    channel.ack(msg);
+  } catch (err) {
+    logger.error("deployment_completed_handler_failed", {
+      event: "deployment_completed_handler_failed",
+      service: SERVICE_NAME,
+      deploymentId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    channel.nack(msg, false, true); // requeue
+  }
+}
+
+async function handleDeploymentDead(
+  data: unknown,
+  channel: Channel,
+  msg: ConsumeMessage,
+): Promise<void> {
+  const event = data as DeploymentRequestedEvent;
+  const { deploymentId, requestId } = event;
+
+  // x-death headers injected by RabbitMQ DLX
+  const xDeath = msg.properties.headers?.["x-death"];
+  const reason = Array.isArray(xDeath) ? xDeath[0]?.reason : "unknown";
+  const originalQueue = Array.isArray(xDeath) ? xDeath[0]?.queue : "unknown";
+
+  try {
+    await deploymentRepository.markFailed(
+      deploymentId,
+      `Dead lettered after max retries. Reason: ${reason}`,
+    );
+
+    logger.error("deployment_dead_lettered", {
+      event: "deployment_dead_lettered",
+      service: SERVICE_NAME,
+      deploymentId,
+      requestId,
+      reason,
+      originalQueue,
+    });
+
+    channel.ack(msg); // always ack dead letter — don't requeue
+  } catch (err) {
+    logger.error("deployment_dead_handler_failed", {
+      event: "deployment_dead_handler_failed",
+      service: SERVICE_NAME,
+      deploymentId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    channel.ack(msg); // still ack — nacking a dead letter causes infinite loops
+  }
+}
+
+async function handleDeploymentFailed(
+  data: unknown,
+  channel: Channel,
+  msg: ConsumeMessage,
+): Promise<void> {
+  const event = data as DeploymentFailedEvent;
+  const { deploymentId, requestId, error } = event;
+
+  try {
+    await deploymentRepository.markFailed(deploymentId, error);
+
+    logger.error("deployment_failed", {
+      event: "deployment_failed",
+      service: SERVICE_NAME,
+      deploymentId,
+      requestId,
+      error,
+    });
+
+    channel.ack(msg);
+  } catch (err) {
+    logger.error("deployment_failed_handler_failed", {
+      event: "deployment_failed_handler_failed",
+      service: SERVICE_NAME,
+      deploymentId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    channel.nack(msg, false, true); // requeue
+  }
+}
 
 export async function connectDeploymentConsumer(): Promise<void> {
   const channel = getRabbitMQChannel();
@@ -132,7 +239,7 @@ export async function connectDeploymentConsumer(): Promise<void> {
 
         await handler(data, channel, msg);
       },
-      { noAck: false }
+      { noAck: false },
     );
 
     logger.info("deployment_consumer_started", {

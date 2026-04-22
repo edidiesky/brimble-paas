@@ -6,8 +6,9 @@ export type DeploymentStatus =
   | "building"
   | "deploying"
   | "running"
+  | "completed"
   | "failed";
-
+// completed
 export type DeploymentSource = "git" | "upload";
 
 export type LogPhase =
@@ -186,3 +187,15 @@ export type SSEEvent =
   | { type: "log"; data: DeploymentLogData }
   | { type: "status"; data: DeploymentStatusData }
   | { type: "done"; data: DeploymentDoneData };
+
+
+  export interface DeploymentCompletedEvent {
+  deploymentId: string;
+  requestId: string;
+}
+
+export interface DeploymentFailedEvent {
+  deploymentId: string;
+  requestId: string;
+  error: string;
+}
