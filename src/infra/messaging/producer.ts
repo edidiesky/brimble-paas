@@ -6,11 +6,11 @@ import type { DeploymentRequestedEvent } from "../../shared/types";
 
 const logger = createLogger(SERVICE_NAME);
 
-export async function publishToExchange(
+export function publishToExchange(
   routingKey: DeploymentRoutingKey,
   payload: unknown,
   requestId?: string
-): Promise<void> {
+): void {
   const channel = getRabbitMQChannel();
 
   channel.publish(

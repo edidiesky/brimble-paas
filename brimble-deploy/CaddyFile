@@ -1,0 +1,12 @@
+{
+  admin 0.0.0.0:2019
+  auto_https off
+}
+
+:80 {
+  # Health check for caddy itself
+  handle /caddy/health {
+    respond "ok" 200
+  }
+  # /deploy/<deploymentId>/* -> host.docker.internal:<hostPort>
+}

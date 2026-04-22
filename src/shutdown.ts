@@ -1,34 +1,29 @@
-import { Server } from "http";
 import mongoose from "mongoose";
-import logger from "./shared/utils/logger";
+import { disconnectRabbitMQ } from "./infra/messaging/connection";
+import { createLogger } from "./shared/utils/logger";
 import { SERVICE_NAME } from "./shared/constants";
-import { leaderElection, pollLoop, watchdog } from "./bootStrap";
-import { disconnectRabbitMQ } from "./infra/config/rabbitmq.consumer";
-import { disconnectRedis } from "./infra/config/redis";
-import { stopOutboxPoller } from "./shared/utils/outbox-poller";
 
-export function registerShutdownHooks(server: Server): void {
-  async function shutdown(signal: string): Promise<void> {
-    logger.info("shutdown_initiated", {
-      event: "shutdown_initiated",
+const logger = createLogger(SERVICE_NAME);
+
+export async function gracefulShutdown(signal: string): Promise<void> {
+  logger.info("shutdown_initiated", {
+    event: "shutdown_initiated",
+    service: SERVICE_NAME,
+    signal,
+  });
+
+  try {
+    await disconnectRabbitMQ();
+    logger.info("rabbitmq_disconnected", {
+      event: "rabbitmq_disconnected",
       service: SERVICE_NAME,
-      signal,
     });
 
-    server.close();
-
-    pollLoop?.stop();
-    stopOutboxPoller();
-    watchdog?.stop();
-
-    if (pollLoop) {
-      await pollLoop.drain(30_000);
-    }
-
-    await leaderElection?.stop();
-    await disconnectRabbitMQ();
-    await disconnectRedis();
-    await mongoose.connection.close();
+    await mongoose.disconnect();
+    logger.info("mongodb_disconnected", {
+      event: "mongodb_disconnected",
+      service: SERVICE_NAME,
+    });
 
     logger.info("shutdown_complete", {
       event: "shutdown_complete",
@@ -36,27 +31,13 @@ export function registerShutdownHooks(server: Server): void {
     });
 
     process.exit(0);
+  } catch (err) {
+    logger.error("shutdown_error", {
+      event: "shutdown_error",
+      service: SERVICE_NAME,
+      error: err instanceof Error ? err.message : String(err),
+    });
+
+    process.exit(1);
   }
-
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
-
-  process.on("uncaughtException", (error: Error) => {
-    logger.error("uncaught_exception", {
-      event: "uncaught_exception",
-      service: SERVICE_NAME,
-      error: error.message,
-      stack: error.stack,
-    });
-    shutdown("uncaughtException");
-  });
-
-  process.on("unhandledRejection", (reason: unknown) => {
-    logger.error("unhandled_rejection", {
-      event: "unhandled_rejection",
-      service: SERVICE_NAME,
-      reason: reason instanceof Error ? reason.message : String(reason),
-    });
-    shutdown("unhandledRejection");
-  });
 }

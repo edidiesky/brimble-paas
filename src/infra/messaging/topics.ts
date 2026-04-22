@@ -62,7 +62,12 @@ export const QUEUE_TOPOLOGY: QueueTopology[] = [
     routingKey: ROUTING_KEYS.DEPLOYMENT_FAILED,
     options: {
       durable: true,
-      arguments: { "x-queue-type": "quorum" },
+      arguments: {
+        "x-queue-type": "quorum",
+        "x-delivery-limit": RABBITMQ_CONFIG.MAX_RETRIES,
+        "x-dead-letter-exchange": DEPLOYMENTS_DLX,
+        "x-dead-letter-routing-key": ROUTING_KEYS.DEPLOYMENT_DEAD,
+      },
     },
   },
   {

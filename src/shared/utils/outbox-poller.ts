@@ -1,7 +1,9 @@
-import { publishToExchange, RoutingKey } from "../../infra/config/rabbitmq.consumer";
+
+import { publishToExchange } from "../../infra/messaging/producer";
 import OutboxModel from "../../infra/models/OutboxModel";
 import { SERVICE_NAME } from "../constants";
 import logger from "./logger";
+import { DeploymentRoutingKey } from "../../infra/messaging/topics";
 
 const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE = 50;
@@ -30,7 +32,7 @@ async function flush(): Promise<void> {
   for (const outboxEvent of events) {
     try {
       await publishToExchange(
-        outboxEvent.type as RoutingKey,
+        outboxEvent.type as DeploymentRoutingKey,
         outboxEvent.payload
       );
 

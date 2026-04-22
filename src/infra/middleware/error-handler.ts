@@ -1,95 +1,50 @@
-import { Request, Response, NextFunction } from "express";
-import logger from "../../shared/utils/logger";
-import { AppError } from "../../shared/utils/AppError";
-import { AuthenticatedRequest } from "../../shared/types";
+import type { Request, Response, NextFunction } from "express";
+import { isAppError } from "../../shared/utils/error";
+import { createLogger } from "../../shared/utils/logger";
+import { SERVICE_NAME, HTTP_STATUS } from "../../shared/constants";
+import type { AuthenticatedRequest } from "../../shared/types";
 
-export function NotFound(req: Request, res: Response): void {
-  res.status(404).json({
-    success: false,
-    error: `Route ${req.method} ${req.originalUrl} not found`,
-  });
-}
+const logger = createLogger(SERVICE_NAME);
 
 export function errorHandler(
-  error: Error,
+  err: unknown, 
   req: Request,
   res: Response,
   _next: NextFunction
 ): void {
   const requestId = (req as AuthenticatedRequest).requestId;
-  const userId = (req as AuthenticatedRequest).user?.userId;
 
-  if (error instanceof AppError) {
+  if (isAppError(err)) {
     logger.warn("app_error", {
       event: "app_error",
+      service: SERVICE_NAME,
+      code: err.code,
+      message: err.message,
+      statusCode: err.statusCode,
+      context: err.context,
       requestId,
-      userId,
-      statusCode: error.statusCode,
-      message: error.message,
-      path: req.originalUrl,
-      method: req.method,
     });
 
-    res.status(error.statusCode).json({
-      success: false,
-      error: error.message,
+    res.status(err.statusCode).json({
+      error: err.message,
+      code: err.code,
+      ...(err.context && { context: err.context }),
     });
     return;
   }
 
-  if (error.name === "ValidationError") {
-    logger.warn("validation_error", {
-      event: "validation_error",
-      requestId,
-      userId,
-      message: error.message,
-      path: req.originalUrl,
-    });
-
-    res.status(400).json({
-      success: false,
-      error: error.message,
-    });
-    return;
-  }
-
-  if (error.name === "MongoServerError" && (error as NodeJS.ErrnoException).code === "11000") {
-    logger.warn("duplicate_key_error", {
-      event: "duplicate_key_error",
-      requestId,
-      userId,
-      message: error.message,
-      path: req.originalUrl,
-    });
-
-    res.status(409).json({
-      success: false,
-      error: "Duplicate key: resource already exists",
-    });
-    return;
-  }
-
-  // JWT errors
-  if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
-    res.status(401).json({
-      success: false,
-      error: "Invalid or expired token",
-    });
-    return;
-  }
+  const message = err instanceof Error ? err.message : "Internal server error";
 
   logger.error("unhandled_error", {
     event: "unhandled_error",
+    service: SERVICE_NAME,
+    message,
+    stack: err instanceof Error ? err.stack : undefined,
     requestId,
-    userId,
-    message: error.message,
-    stack: error.stack,
-    path: req.originalUrl,
-    method: req.method,
   });
 
-  res.status(500).json({
-    success: false,
+  res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
     error: "Internal server error",
+    code: "INTERNAL_SERVER_ERROR",
   });
 }

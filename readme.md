@@ -17,46 +17,46 @@ Phase 2: Data Layer
 
 Phase 3: Messaging
 
- 12. messaging/topics.ts
- 13. messaging/connection.ts
- 14. messaging/producer.ts
- 15. messaging/consumers/deployment.consumer.ts
+ 12. messaging/topics.ts (done)
+ 13. messaging/connection.ts (done)
+ 14. messaging/producer.ts (done)
+ 15. messaging/consumers/deployment.consumer.ts (done)
 
 Phase 4: Pipeline
 
- 16. events/bus.ts
- 17. pipeline/log-writer.ts
- 18. pipeline/steps/clone.ts
- 19. pipeline/steps/build.ts
- 20. pipeline/steps/run.ts
- 21. pipeline/steps/register.ts
- 22. pipeline/runner.ts
+ 16. events/bus.ts (done)
+ 17. pipeline/log-writer.ts (done)
+ 18. pipeline/steps/clone.ts (done)
+ 19. pipeline/steps/build.ts (done)
+ 20. pipeline/steps/run.ts (done)
+ 21. pipeline/steps/register.ts (done)
+ 22. pipeline/runner.ts (done)
 
 Phase 5: Services + Controllers
 
- 23. services/deployment.service.ts
- 24. services/dead-letter.service.ts
- 25. services/docker.service.ts
- 26. services/caddy.service.ts
- 27. controllers/deployment.controller.ts
- 28. controllers/dead-letter.controller.ts
+ 23. services/deployment.service.ts (done)
+ 24. services/dead-letter.service.ts (done)
+ 25. services/docker.service.ts (done)
+ 26. services/caddy.service.ts (done)
+ 27. controllers/deployment.controller.ts (done)
+ 28. controllers/dead-letter.controller.ts (done)
 
 Phase 6: HTTP Layer
 
- 29. validators/deployment.validator.ts
- 30. middleware/validateRequest.ts
- 31. middleware/requestId.ts
- 32. middleware/errorHandler.ts
- 33. middleware/upload.ts
- 34. routes/deployment.routes.ts
- 35. routes/dead-letter.routes.ts
- 36. app.ts
+ 29. validators/deployment.validator.ts (done)
+ 30. middleware/validateRequest.ts (done)
+ 31. middleware/requestId.ts (done)
+ 32. middleware/errorHandler.ts (done)
+ 33. middleware/upload.ts (done)
+ 34. routes/deployment.routes.ts (done)
+ 35. routes/dead-letter.routes.ts (done)
+ 36. app.ts (done)
 
 Phase 7: Lifecycle
 
- 37. bootstrap.ts
- 38. shutdown.ts
- 39. server.ts
+ 37. bootstrap.ts (done)
+ 38. shutdown.ts (done)
+ 39. server.ts (done)
 
 Phase 8: Infra
 

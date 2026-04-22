@@ -1,8 +1,11 @@
-import type { Request } from "express";
+import "express";
+import type { File } from "multer";
 
-export interface AuthenticatedRequest extends Request {
-  requestId: string;
-  user: {
-    userId: string;
-  };
+declare global {
+  namespace Express {
+    interface Request {
+      file?: File;
+      files?: File[] | { [fieldname: string]: File[] };
+    }
+  }
 }

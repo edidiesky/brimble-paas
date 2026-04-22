@@ -1,9 +1,8 @@
+name: brimble
+
 networks:
-  app-tier:
+  brimble-network:
     driver: bridge
-  selleasi-network:
-    external: true
-    name: development_selleasi-network
 
 volumes:
   rabbitmq_data:
@@ -11,17 +10,45 @@ volumes:
   redis-insight-data:
   prom_data:
   grafana_data:
-  tempo_data:
+  mongo_data:
+  workspaces_data:
 
 services:
 
+  mongodb:
+    image: mongo:7.0
+    container_name: brimble_mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpass
+      MONGO_INITDB_DATABASE: brimble
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - brimble-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
   redis:
     image: redis:7.2-alpine
-    container_name: scheduler_redis
+    container_name: brimble_redis
     command: >
       redis-server
       --loglevel notice
-      --maxmemory 2gb
+      --maxmemory 512mb
       --maxmemory-policy volatile-lru
       --appendonly yes
       --appendfsync everysec
@@ -42,7 +69,7 @@ services:
     volumes:
       - redis-data:/data
     networks:
-      - app-tier
+      - brimble-network
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
       interval: 10s
@@ -53,17 +80,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2200M
+          memory: 600M
         reservations:
-          memory: 512M
+          memory: 128M
 
   redis-insight:
     image: redislabs/redisinsight:latest
-    container_name: scheduler_redis_insight
+    container_name: brimble_redis_insight
     ports:
       - "8001:8001"
     networks:
-      - app-tier
+      - brimble-network
     volumes:
       - redis-insight-data:/db
     restart: unless-stopped
@@ -73,13 +100,13 @@ services:
 
   redis-exporter:
     image: oliver006/redis_exporter:latest
-    container_name: scheduler_redis_exporter
+    container_name: brimble_redis_exporter
     environment:
       - REDIS_ADDR=redis://redis:6379
     ports:
       - "9121:9121"
     networks:
-      - app-tier
+      - brimble-network
     restart: unless-stopped
     depends_on:
       redis:
@@ -87,18 +114,18 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: scheduler_rabbitmq
-    hostname: scheduler-rabbit-1
+    container_name: brimble_rabbitmq
+    hostname: brimble-rabbit-1
     networks:
-      - app-tier
+      - brimble-network
     ports:
       - "5672:5672"
       - "15672:15672"
       - "15692:15692"
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-scheduler_user}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-scheduler_pass}
-      RABBITMQ_DEFAULT_VHOST: scheduler
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-brimble_user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-brimble_pass}
+      RABBITMQ_DEFAULT_VHOST: brimble
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
       - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
@@ -120,51 +147,63 @@ services:
 
   rabbitmq-exporter:
     image: kbudde/rabbitmq-exporter:latest
-    container_name: scheduler_rabbitmq_exporter
+    container_name: brimble_rabbitmq_exporter
     environment:
       RABBIT_URL: http://rabbitmq:15672
-      RABBIT_USER: ${RABBITMQ_USER:-scheduler_user}
-      RABBIT_PASSWORD: ${RABBITMQ_PASS:-scheduler_pass}
-      RABBIT_VHOST: scheduler
+      RABBIT_USER: ${RABBITMQ_USER:-brimble_user}
+      RABBIT_PASSWORD: ${RABBITMQ_PASS:-brimble_pass}
+      RABBIT_VHOST: brimble
       PUBLISH_PORT: "9419"
     ports:
       - "9419:9419"
     networks:
-      - app-tier
+      - brimble-network
     restart: unless-stopped
     depends_on:
       rabbitmq:
         condition: service_healthy
 
-  scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: scheduler_service
+  caddy:
+    image: caddy:2-alpine
+    container_name: brimble_caddy
     ports:
-      - "4017:4017"
-      - "9464:9464"
-    environment:
-      NODE_ENV: development
-      PORT: 4017
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: redis://redis:6379
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-scheduler_user}:${RABBITMQ_PASS:-scheduler_pass}@rabbitmq:5672/scheduler
-      METRICS_PORT: 9464
-      LOG_LEVEL: info
-      SERVICE_NAME: scheduler-service
-      INVENTORY_SERVICE_URL: http://inventory:4008
-      ORDER_SERVICE_URL: http://orders:4012
-      PAYMENT_SERVICE_URL: http://payment:4004
-      NOTIFICATION_SERVICE_URL: http://selleasi-notification:4006
-      REPORTING_SERVICE_URL: http://selleasi-stores:4007
+      - "80:80"
+      - "2019:2019"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
     networks:
-      - app-tier
-      - selleasi-network
+      - brimble-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/caddy/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: brimble_api
+    ports:
+      - "3000:3000"
+      - "9464:9464"
+    env_file:
+      - ../.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - workspaces_data:/app/workspaces
+    networks:
+      - brimble-network
     depends_on:
+      mongodb:
+        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      caddy:
         condition: service_healthy
     restart: unless-stopped
     logging:
@@ -174,7 +213,7 @@ services:
         max-file: "5"
         labels: "service,env"
     labels:
-      service: scheduler-service
+      service: brimble-api
       env: development
     deploy:
       resources:
@@ -185,7 +224,7 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    container_name: scheduler_prometheus
+    container_name: brimble_prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -198,60 +237,44 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prom_data:/prometheus
     networks:
-      - app-tier
+      - brimble-network
     restart: unless-stopped
     depends_on:
-      - scheduler
+      - api
       - redis-exporter
       - rabbitmq-exporter
 
   loki:
     image: grafana/loki:2.9.4
-    container_name: scheduler_loki
+    container_name: brimble_loki
     ports:
       - "3100:3100"
     volumes:
       - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
     command: -config.file=/etc/loki/loki-config.yml
     networks:
-      - app-tier
+      - brimble-network
     restart: unless-stopped
 
   promtail:
     image: grafana/promtail:2.9.4
-    container_name: scheduler_promtail
+    container_name: brimble_promtail
     command: -config.file=/etc/promtail/promtail-config.yml
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
     networks:
-      - app-tier
+      - brimble-network
     restart: unless-stopped
     depends_on:
       - loki
 
-  tempo:
-    image: grafana/tempo:latest
-    container_name: scheduler_tempo
-    user: "10001:10001"
-    command: ["-config.file=/etc/tempo/tempo-config.yml"]
-    ports:
-      - "3200:3200"
-      - "4317:4317"
-      - "4318:4318"
-    volumes:
-      - tempo_data:/var/tempo
-      - ./tempo/tempo-config.yml:/etc/tempo/tempo-config.yml:ro
-    networks:
-      - app-tier
-    restart: unless-stopped
-
   grafana:
     image: grafana/grafana:10.3.1
-    container_name: scheduler_grafana
+    container_name: brimble_grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       GF_PATHS_PROVISIONING: /etc/grafana/provisioning
       GF_AUTH_ANONYMOUS_ENABLED: "true"
@@ -262,9 +285,8 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
-      - app-tier
+      - brimble-network
     restart: unless-stopped
     depends_on:
       - prometheus
       - loki
-      - tempo

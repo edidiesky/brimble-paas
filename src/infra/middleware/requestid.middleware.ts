@@ -1,16 +1,13 @@
-import { Request, Response, NextFunction } from "express";
-import { v4 as uuidv4 } from "uuid";
-import { AuthenticatedRequest } from "../../shared/types";
+import type { Request, Response, NextFunction } from "express";
+import { randomUUID } from "crypto";
+import type { AuthenticatedRequest } from "../../shared/types";
 
 export function requestIdMiddleware(
   req: Request,
-  res: Response,
-  next: NextFunction,
+  _res: Response,
+  next: NextFunction
 ): void {
-  const requestId =
-    (req.headers["x-request-id"] as string | undefined) ?? uuidv4();
-
-  (req as AuthenticatedRequest).requestId = requestId;
-  res.setHeader("x-request-id", requestId);
+  (req as AuthenticatedRequest).requestId =
+    (req.headers["x-request-id"] as string) ?? randomUUID();
   next();
 }
