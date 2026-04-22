@@ -1,89 +1,45 @@
-import type { ClientSession, Types } from "mongoose";
-import DeploymentModel from "../../infra/models/DeploymentModel";
-import type { IDeployment, DeploymentStatus } from "../../shared/types";
-import { createLogger } from "../../shared/utils/logger";
-import { SERVICE_NAME } from "../../shared/constants";
+import type { ClientSession } from "mongoose";
+import DeploymentLogModel from "../../infra/models/DeploymentLogModel";
+import type { IDeploymentLog, LogPhase } from "../../shared/types";
 
-const logger = createLogger(SERVICE_NAME);
-
-class DeploymentRepository {
-  async create(
-    data: Pick<IDeployment, "sourceType" | "sourceRef" | "name">,
+class DeploymentLogRepository {
+  async insert(
+    log: Omit<IDeploymentLog, "_id">,
     session?: ClientSession
-  ): Promise<IDeployment> {
-    const [doc] = await DeploymentModel.create([data], { session });
-
-    logger.debug("deployment_repository_created", {
-      event: "deployment_repository_created",
-      service: SERVICE_NAME,
-      deploymentId: doc._id.toString(),
-    });
-
-    return doc.toObject();
+  ): Promise<void> {
+    await DeploymentLogModel.create([log], { session });
   }
 
-  async findById(id: string | Types.ObjectId): Promise<IDeployment | null> {
-    return DeploymentModel.findById(id).lean();
-  }
-
-  async findAll(): Promise<IDeployment[]> {
-    return DeploymentModel.find().sort({ createdAt: -1 }).lean();
-  }
-
-  async findByStatus(status: DeploymentStatus): Promise<IDeployment[]> {
-    return DeploymentModel.find({ status }).sort({ createdAt: -1 }).lean();
-  }
-
-  async updateStatus(
-    id: string | Types.ObjectId,
-    status: DeploymentStatus,
-    extra?: Partial<
-      Pick<
-        IDeployment,
-        "imageTag" | "containerId" | "hostPort" | "url" | "lastError"
-      >
-    >,
+  async insertMany(
+    logs: Omit<IDeploymentLog, "_id">[],
     session?: ClientSession
-  ): Promise<IDeployment | null> {
-    const doc = await DeploymentModel.findByIdAndUpdate(
-      id,
-      { $set: { status, ...extra } },
-      { new: true, session }
-    ).lean();
-
-    logger.debug("deployment_repository_status_updated", {
-      event: "deployment_repository_status_updated",
-      service: SERVICE_NAME,
-      deploymentId: id.toString(),
-      status,
-    });
-
-    return doc;
+  ): Promise<void> {
+    if (logs.length === 0) return;
+    await DeploymentLogModel.insertMany(logs, { session });
   }
 
-  async incrementAttempts(
-    id: string | Types.ObjectId,
-    session?: ClientSession
-  ): Promise<number> {
-    const doc = await DeploymentModel.findByIdAndUpdate(
-      id,
-      { $inc: { attempts: 1 } },
-      { new: true, session }
-    ).lean();
+  async findByDeploymentId(
+    deploymentId: string,
+    phase?: LogPhase
+  ): Promise<IDeploymentLog[]> {
+    const filter: Record<string, unknown> = { deploymentId };
+    if (phase) filter.phase = phase;
 
-    return doc?.attempts ?? 0;
+    return DeploymentLogModel.find(filter).sort({ seq: 1 }).lean();
   }
 
-  async findAllocatedPorts(): Promise<number[]> {
-    const docs = await DeploymentModel.find(
-      { hostPort: { $exists: true } },
-      { hostPort: 1 }
-    ).lean();
+  async getNextSeq(deploymentId: string): Promise<number> {
+    const last = await DeploymentLogModel.findOne({ deploymentId })
+      .sort({ seq: -1 })
+      .select("seq")
+      .lean();
 
-    return docs
-      .map((d) => d.hostPort)
-      .filter((p): p is number => p !== undefined);
+    return (last?.seq ?? 0) + 1;
+  }
+
+  async countByDeploymentId(deploymentId: string): Promise<number> {
+    return DeploymentLogModel.countDocuments({ deploymentId });
   }
 }
 
-export const deploymentRepository = new DeploymentRepository();
+export const deploymentLogRepository = new DeploymentLogRepository();

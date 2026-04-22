@@ -1,19 +1,19 @@
 
 types
  1. types/index.ts (done)
- 2. constants/index.ts
- 3. utils/logger.ts - createLogger factory
- 4. utils/errors.ts - typed error classes
+ 2. constants/index.ts (done)
+ 3. utils/logger.ts - createLogger factory (done)
+ 4. utils/errors.ts - typed error classes (done)
 
 Phase 2: Data Layer
 
- 5. models/DeploymentModel.ts
- 6. models/DeploymentLogModel.ts
- 7. models/DeadLetterModel.ts
- 8. models/OutboxModel.ts
- 9. repository/deployment.repository.ts
- 10. repository/deployment-log.repository.ts
- 11. repository/dead-letter.repository.ts
+ 5. models/DeploymentModel.ts (done)
+ 6. models/DeploymentLogModel.ts (done)
+ 7. models/DeadLetterModel.ts (done)
+ 8. models/OutboxModel.ts (done)
+ 9. repository/deployment.repository.ts (done)
+ 10. repository/deployment-log.repository.ts (done)
+ 11. repository/dead-letter.repository.ts (done)
 
 Phase 3: Messaging
 

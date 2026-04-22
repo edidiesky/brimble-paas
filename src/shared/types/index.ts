@@ -124,3 +124,65 @@ export interface AuthenticatedRequest extends Request {
     userId: string;
   };
 }
+
+
+
+export type JobStatus = 'pending' | 'running' | 'complete' | 'error';
+
+export interface Job {
+  id: string;
+  status: JobStatus;
+  createdAt: number;
+}
+
+export type SSEEventType = 'progress' | 'complete' | 'error';
+
+export interface ProgressData {
+  jobId: string;
+  percent: number;
+  message: string; 
+  step: number; 
+  totalSteps: number;
+  elapsedMs: number;
+}
+
+export interface CompleteData {
+  jobId: string;
+  result: unknown; 
+  totalMs: number;
+}
+
+export interface ErrorData {
+  jobId: string;
+  message: string;
+  code: string;
+}
+
+// Deployment SSE event data shapes
+export interface DeploymentLogData {
+  deploymentId: string;
+  seq: number;
+  ts: string;
+  line: string;
+  phase: LogPhase;
+}
+
+export interface DeploymentStatusData {
+  type: "status";
+  deploymentId: string;
+  status: DeploymentStatus;
+}
+
+export interface DeploymentDoneData {
+  type: "done";
+  status: DeploymentStatus;
+}
+
+// Extend SSEEvent union with deployment variants
+export type SSEEvent =
+  | { type: "progress"; data: ProgressData }
+  | { type: "complete"; data: CompleteData }
+  | { type: "error"; data: ErrorData }
+  | { type: "log"; data: DeploymentLogData }
+  | { type: "status"; data: DeploymentStatusData }
+  | { type: "done"; data: DeploymentDoneData };
