@@ -1,13 +1,9 @@
-import mongoose from "mongoose";
+import { getPool } from "../../infra/db/pool";
 import { deadLetterRepository } from "./dead-letter.repository";
 import { outboxRepository } from "../outbox/outbox.repository";
 import { createLogger } from "../../shared/utils/logger";
 import { SERVICE_NAME } from "../../shared/constants";
-import type {
-  IDeadLetter,
-  JobType,
-  PaginatedResult,
-} from "../../shared/types";
+import type { IDeadLetter, JobType, PaginatedResult } from "../../shared/types";
 
 const logger = createLogger(SERVICE_NAME);
 
@@ -22,43 +18,46 @@ interface DeadLetterInput {
 
 class DeadLetterService {
   async create(input: DeadLetterInput): Promise<void> {
-    const session = await mongoose.startSession();
+    const pool = getPool();
+    const client = await pool.connect();
 
     try {
-      await session.withTransaction(async () => {
-        await deadLetterRepository.create(
-          {
+      await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
+
+      await deadLetterRepository.create(
+        {
+          jobId: input.jobId,
+          jobType: input.jobType,
+          tenantId: input.tenantId,
+          payload: input.payload,
+          attempts: input.attempts,
+          errors: [
+            {
+              attempt: input.attempts,
+              error: input.lastError,
+              occurredAt: new Date(),
+            },
+          ],
+        },
+        client,
+      );
+
+      await outboxRepository.create(
+        {
+          type: "deployment.dead.topic",
+          payload: {
             jobId: input.jobId,
             jobType: input.jobType,
             tenantId: input.tenantId,
-            payload: input.payload,
-            attempts: input.attempts,
-            errors: [
-              {
-                attempt: input.attempts,
-                error: input.lastError,
-                occurredAt: new Date(),
-              },
-            ],
+            totalAttempts: input.attempts,
+            lastError: input.lastError,
+            deadAt: new Date().toISOString(),
           },
-          session
-        );
+        },
+        client,
+      );
 
-        await outboxRepository.create(
-          {
-            type: "deployment.dead.topic",
-            payload: {
-              jobId: input.jobId,
-              jobType: input.jobType,
-              tenantId: input.tenantId,
-              totalAttempts: input.attempts,
-              lastError: input.lastError,
-              deadAt: new Date().toISOString(),
-            },
-          },
-          session
-        );
-      });
+      await client.query("COMMIT");
 
       logger.error("dead_letter_service_created", {
         event: "dead_letter_service_created",
@@ -68,15 +67,18 @@ class DeadLetterService {
         attempts: input.attempts,
       });
     } catch (error) {
+      await client.query("ROLLBACK");
+
       logger.error("dead_letter_service_create_failed", {
         event: "dead_letter_service_create_failed",
         service: SERVICE_NAME,
         jobId: input.jobId,
         error: error instanceof Error ? error.message : String(error),
       });
+
       throw error;
     } finally {
-      await session.endSession();
+      client.release();
     }
   }
 
@@ -84,7 +86,7 @@ class DeadLetterService {
     tenantId: string | undefined,
     jobType: JobType | undefined,
     page: number,
-    limit: number
+    limit: number,
   ): Promise<PaginatedResult<IDeadLetter>> {
     return deadLetterRepository.findUnresolved(tenantId, jobType, page, limit);
   }
@@ -95,13 +97,9 @@ class DeadLetterService {
 
   async resolve(
     jobId: string,
-    resolution: string
+    resolution: string,
   ): Promise<IDeadLetter | null> {
-    const doc = await deadLetterRepository.resolve(
-      jobId,
-      "system",
-      resolution
-    );
+    const doc = await deadLetterRepository.resolve(jobId, "system", resolution);
 
     if (doc) {
       logger.info("dead_letter_service_resolved", {

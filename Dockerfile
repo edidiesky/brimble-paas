@@ -23,7 +23,14 @@ RUN addgroup -g 1001 brimble-paas && \
 
 RUN apk add --no-cache curl git docker-cli
 
-RUN curl -fsSL https://railpack.io/install.sh | sh
+# Install railpack - musl build for Alpine
+RUN curl -fsSL \
+    "https://github.com/railwayapp/railpack/releases/download/v0.23.0/railpack-v0.23.0-x86_64-unknown-linux-musl.tar.gz" \
+    -o /tmp/railpack.tar.gz && \
+    tar -xzf /tmp/railpack.tar.gz -C /usr/local/bin && \
+    chmod +x /usr/local/bin/railpack && \
+    rm /tmp/railpack.tar.gz && \
+    railpack --version
 
 COPY package.json package-lock.json ./
 

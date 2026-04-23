@@ -1,4 +1,3 @@
-import { Types } from "mongoose";
 import type { Request } from "express";
 
 export type DeploymentStatus =
@@ -6,9 +5,8 @@ export type DeploymentStatus =
   | "building"
   | "deploying"
   | "running"
-  | "completed"
   | "failed";
-// completed
+
 export type DeploymentSource = "git" | "upload";
 
 export type LogPhase =
@@ -27,7 +25,7 @@ export type JobType =
   | "SCHEDULED_REPORT";
 
 export interface IDeployment {
-  _id: Types.ObjectId;
+  id: string;
   name?: string;
   sourceType: DeploymentSource;
   sourceRef: string;
@@ -43,7 +41,7 @@ export interface IDeployment {
 }
 
 export interface IDeploymentLog {
-  _id: Types.ObjectId;
+  id: string;
   deploymentId: string;
   seq: number;
   ts: Date;
@@ -59,7 +57,7 @@ export interface IDeadLetterError {
 }
 
 export interface IDeadLetter {
-  _id: Types.ObjectId;
+  id: string;
   jobId: string;
   jobType: JobType;
   tenantId: string;
@@ -74,7 +72,7 @@ export interface IDeadLetter {
 }
 
 export interface IOutbox {
-  _id: Types.ObjectId;
+  id: string;
   type: string;
   payload: Record<string, unknown>;
   status: "pending" | "published" | "failed";
@@ -126,9 +124,7 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-
-
-export type JobStatus = 'pending' | 'running' | 'complete' | 'error';
+export type JobStatus = "pending" | "running" | "complete" | "error";
 
 export interface Job {
   id: string;
@@ -136,20 +132,20 @@ export interface Job {
   createdAt: number;
 }
 
-export type SSEEventType = 'progress' | 'complete' | 'error';
+export type SSEEventType = "progress" | "complete" | "error";
 
 export interface ProgressData {
   jobId: string;
   percent: number;
-  message: string; 
-  step: number; 
+  message: string;
+  step: number;
   totalSteps: number;
   elapsedMs: number;
 }
 
 export interface CompleteData {
   jobId: string;
-  result: unknown; 
+  result: unknown;
   totalMs: number;
 }
 
@@ -159,7 +155,6 @@ export interface ErrorData {
   code: string;
 }
 
-// Deployment SSE event data shapes
 export interface DeploymentLogData {
   deploymentId: string;
   seq: number;
@@ -179,7 +174,6 @@ export interface DeploymentDoneData {
   status: DeploymentStatus;
 }
 
-// Extend SSEEvent union with deployment variants
 export type SSEEvent =
   | { type: "progress"; data: ProgressData }
   | { type: "complete"; data: CompleteData }
@@ -188,14 +182,24 @@ export type SSEEvent =
   | { type: "status"; data: DeploymentStatusData }
   | { type: "done"; data: DeploymentDoneData };
 
-
-  export interface DeploymentCompletedEvent {
-  deploymentId: string;
-  requestId: string;
+export interface Connection {
+  id: string;
+  jobId: string;
+  res: import("express").Response;
+  connectedAt: number;
 }
 
-export interface DeploymentFailedEvent {
-  deploymentId: string;
-  requestId: string;
-  error: string;
+export interface IJobRepository {
+  create(id: string): Promise<Job>;
+  findById(id: string): Promise<Job | null>;
+  updateStatus(id: string, status: JobStatus): Promise<Job | null>;
+  delete(id: string): Promise<void>;
+  findAll(): Promise<Job[]>;
+}
+
+export interface IJobService {
+  createAndRun(id: string): Promise<Job>;
+  getJob(id: string): Promise<Job>;
+  getAllJobs(): Promise<Job[]>;
+  deleteJob(id: string): Promise<void>;
 }

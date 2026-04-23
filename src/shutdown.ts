@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import { disconnectPostgres } from "./infra/config/postgres";
 import { disconnectRabbitMQ } from "./infra/messaging/connection";
 import { createLogger } from "./shared/utils/logger";
 import { SERVICE_NAME } from "./shared/constants";
@@ -19,11 +19,7 @@ export async function gracefulShutdown(signal: string): Promise<void> {
       service: SERVICE_NAME,
     });
 
-    await mongoose.disconnect();
-    logger.info("mongodb_disconnected", {
-      event: "mongodb_disconnected",
-      service: SERVICE_NAME,
-    });
+    await disconnectPostgres();
 
     logger.info("shutdown_complete", {
       event: "shutdown_complete",
@@ -37,7 +33,6 @@ export async function gracefulShutdown(signal: string): Promise<void> {
       service: SERVICE_NAME,
       error: err instanceof Error ? err.message : String(err),
     });
-
     process.exit(1);
   }
 }

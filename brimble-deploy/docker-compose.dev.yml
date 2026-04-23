@@ -10,37 +10,36 @@ volumes:
   redis-insight-data:
   prom_data:
   grafana_data:
-  mongo_data:
+  postgres_data:
   workspaces_data:
 
 services:
-
-  mongodb:
-    image: mongo:7.0
-    container_name: brimble_mongodb
+  postgres:
+    image: postgres:16-alpine
+    container_name: brimble_postgres
     ports:
-      - "27017:27017"
+      - "5432:5432"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpass
-      MONGO_INITDB_DATABASE: brimble
+      POSTGRES_USER: brimble
+      POSTGRES_PASSWORD: brimblepass
+      POSTGRES_DB: brimble
     volumes:
-      - mongo_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - brimble-network
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD-SHELL", "pg_isready -U brimble -d brimble"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 10s
     restart: unless-stopped
     deploy:
       resources:
         limits:
           memory: 512M
         reservations:
-          memory: 256M
+          memory: 128M
 
   redis:
     image: redis:7.2-alpine
@@ -197,7 +196,7 @@ services:
     networks:
       - brimble-network
     depends_on:
-      mongodb:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
