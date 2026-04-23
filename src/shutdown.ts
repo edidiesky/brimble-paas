@@ -2,6 +2,7 @@ import { disconnectPostgres } from "./infra/config/postgres";
 import { disconnectRabbitMQ } from "./infra/messaging/connection";
 import { createLogger } from "./shared/utils/logger";
 import { SERVICE_NAME } from "./shared/constants";
+import { stopOutboxPoller } from "./shared/utils/outbox-poller";
 
 const logger = createLogger(SERVICE_NAME);
 
@@ -11,6 +12,7 @@ export async function gracefulShutdown(signal: string): Promise<void> {
     service: SERVICE_NAME,
     signal,
   });
+  
 
   try {
     await disconnectRabbitMQ();
@@ -21,10 +23,14 @@ export async function gracefulShutdown(signal: string): Promise<void> {
 
     await disconnectPostgres();
 
+    stopOutboxPoller();
+
     logger.info("shutdown_complete", {
       event: "shutdown_complete",
       service: SERVICE_NAME,
     });
+
+
 
     process.exit(0);
   } catch (err) {

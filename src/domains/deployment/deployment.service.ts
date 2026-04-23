@@ -37,7 +37,7 @@ class DeploymentService {
       name,
     });
 
-    const deploymentId = deployment._id.toString();
+    const deploymentId = deployment.id.toString();
 
     await publishDeploymentRequested({
       deploymentId,
@@ -62,7 +62,7 @@ class DeploymentService {
     return deploymentRepository.findAll();
   }
 
-  async getDeployment(id: string | Types.ObjectId): Promise<IDeployment> {
+  async getDeployment(id: string): Promise<IDeployment> {
     const deployment = await deploymentRepository.findById(id);
 
     if (!deployment) {

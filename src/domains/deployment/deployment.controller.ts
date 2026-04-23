@@ -27,7 +27,7 @@ export const createDeploymentHandler = asyncHandler(
     logger.info("deployment_controller_created", {
       event: "deployment_controller_created",
       service: SERVICE_NAME,
-      deploymentId: deployment._id.toString(),
+      deploymentId: deployment.id.toString(),
       sourceType,
       requestId,
     });

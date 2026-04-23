@@ -1,9 +1,10 @@
-
+import { outboxRepository } from "../../domains/outbox/outbox.repository";
 import { publishToExchange } from "../../infra/messaging/producer";
-import OutboxModel from "../../infra/models/OutboxModel";
 import { SERVICE_NAME } from "../constants";
-import logger from "./logger";
-import { DeploymentRoutingKey } from "../../infra/messaging/topics";
+import { createLogger } from "./logger";
+import type { DeploymentRoutingKey } from "../../infra/messaging/topics";
+
+const logger = createLogger(SERVICE_NAME);
 
 const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE = 50;
@@ -13,13 +14,7 @@ let timer: NodeJS.Timeout | null = null;
 let running = false;
 
 async function flush(): Promise<void> {
-  const events = await OutboxModel.find({
-    status: "pending",
-    retryCount: { $lt: MAX_RETRY_COUNT },
-  })
-    .sort({ createdAt: 1 })
-    .limit(BATCH_SIZE)
-    .exec();
+  const events = await outboxRepository.findPending(BATCH_SIZE);
 
   if (events.length === 0) return;
 
@@ -36,42 +31,26 @@ async function flush(): Promise<void> {
         outboxEvent.payload
       );
 
-      await OutboxModel.updateOne(
-        { _id: outboxEvent._id },
-        {
-          $set: {
-            status: "completed",
-            processedAt: new Date(),
-          },
-        }
-      );
+      await outboxRepository.markPublished(outboxEvent.id);
 
       logger.info("outbox_poller_event_published", {
         event: "outbox_poller_event_published",
         service: SERVICE_NAME,
-        outboxId: outboxEvent._id.toString(),
+        outboxId: outboxEvent.id,
         type: outboxEvent.type,
       });
     } catch (error) {
       const newRetryCount = outboxEvent.retryCount + 1;
       const isDead = newRetryCount >= MAX_RETRY_COUNT;
 
-      await OutboxModel.updateOne(
-        { _id: outboxEvent._id },
-        {
-          $set: {
-            status: isDead ? "dead" : "pending",
-            retryCount: newRetryCount,
-            lastError:
-              error instanceof Error ? error.message : String(error),
-          },
-        }
-      );
+      if (isDead) {
+        await outboxRepository.markFailed(outboxEvent.id);
+      }
 
       logger.error("outbox_poller_event_failed", {
         event: "outbox_poller_event_failed",
         service: SERVICE_NAME,
-        outboxId: outboxEvent._id.toString(),
+        outboxId: outboxEvent.id,
         type: outboxEvent.type,
         retryCount: newRetryCount,
         isDead,

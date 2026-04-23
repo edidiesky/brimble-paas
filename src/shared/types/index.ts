@@ -189,17 +189,16 @@ export interface Connection {
   connectedAt: number;
 }
 
-export interface IJobRepository {
-  create(id: string): Promise<Job>;
-  findById(id: string): Promise<Job | null>;
-  updateStatus(id: string, status: JobStatus): Promise<Job | null>;
-  delete(id: string): Promise<void>;
-  findAll(): Promise<Job[]>;
+export interface DeploymentCompletedEvent {
+  deploymentId: string;
+  imageTag: string;
+  url: string;
+  requestId?: string;
 }
 
-export interface IJobService {
-  createAndRun(id: string): Promise<Job>;
-  getJob(id: string): Promise<Job>;
-  getAllJobs(): Promise<Job[]>;
-  deleteJob(id: string): Promise<void>;
+export interface DeploymentFailedEvent {
+  deploymentId: string;
+  error: string;
+  attempts: number;
+  requestId?: string;
 }

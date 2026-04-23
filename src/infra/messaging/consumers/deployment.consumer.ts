@@ -14,21 +14,20 @@ import { PipelineRunner } from "../../../domains/deployment/ipeline/runner";
 
 const logger = createLogger(SERVICE_NAME);
 
-// Topic handler map
 const topicHandlers: Record<
   string,
   (data: unknown, channel: Channel, msg: ConsumeMessage) => Promise<void>
 > = {
   [ROUTING_KEYS.DEPLOYMENT_REQUESTED]: handleDeploymentRequested,
-  [ROUTING_KEYS.DEPLOYMENT_COMPLETED]: handleDeploymentCompleted, // add
-  [ROUTING_KEYS.DEPLOYMENT_FAILED]: handleDeploymentFailed, // add
+  [ROUTING_KEYS.DEPLOYMENT_COMPLETED]: handleDeploymentCompleted,
+  [ROUTING_KEYS.DEPLOYMENT_FAILED]: handleDeploymentFailed,
   [ROUTING_KEYS.DEPLOYMENT_DEAD]: handleDeploymentDead,
 };
 
 async function handleDeploymentRequested(
   data: unknown,
   channel: Channel,
-  msg: ConsumeMessage,
+  msg: ConsumeMessage
 ): Promise<void> {
   const event = data as DeploymentRequestedEvent;
   const { deploymentId, sourceType, sourceRef, requestId } = event;
@@ -66,14 +65,23 @@ async function handleDeploymentRequested(
     });
 
     if (attempts >= RABBITMQ_CONFIG.MAX_RETRIES) {
-      await deadLetterService.create({
-        jobId: deploymentId,
-        jobType: "DEPLOYMENT",
-        tenantId: "system",
-        payload: { sourceType, sourceRef },
-        attempts,
-        lastError: errorMessage,
-      });
+      try {
+        await deadLetterService.create({
+          jobId: deploymentId,
+          jobType: "DEPLOYMENT",
+          tenantId: "system",
+          payload: { sourceType, sourceRef },
+          attempts,
+          lastError: errorMessage,
+        });
+      } catch (dlErr) {
+        logger.error("deployment_dead_letter_create_failed", {
+          event: "deployment_dead_letter_create_failed",
+          service: SERVICE_NAME,
+          deploymentId,
+          error: dlErr instanceof Error ? dlErr.message : String(dlErr),
+        });
+      }
 
       logger.error("deployment_handler_dead_lettered", {
         event: "deployment_handler_dead_lettered",
@@ -82,7 +90,6 @@ async function handleDeploymentRequested(
         attempts,
       });
 
-      // nack without requeue, routes to DLX
       channel.nack(msg, false, false);
     } else {
       logger.warn("deployment_handler_retrying", {
@@ -93,21 +100,24 @@ async function handleDeploymentRequested(
         nextAttempt: attempts + 1,
       });
 
-      // nack with requeue
       channel.nack(msg, false, true);
     }
   }
 }
+
 async function handleDeploymentCompleted(
   data: unknown,
   channel: Channel,
-  msg: ConsumeMessage,
+  msg: ConsumeMessage
 ): Promise<void> {
   const event = data as DeploymentCompletedEvent;
-  const { deploymentId, requestId } = event;
+  const { deploymentId, requestId, imageTag, url } = event;
 
   try {
-    await deploymentRepository.markCompleted(deploymentId);
+    await deploymentRepository.updateStatus(deploymentId, "running", {
+      imageTag,
+      url,
+    });
 
     logger.info("deployment_completed", {
       event: "deployment_completed",
@@ -124,28 +134,26 @@ async function handleDeploymentCompleted(
       deploymentId,
       error: err instanceof Error ? err.message : String(err),
     });
-    channel.nack(msg, false, true); // requeue
+    channel.nack(msg, false, true);
   }
 }
 
 async function handleDeploymentDead(
   data: unknown,
   channel: Channel,
-  msg: ConsumeMessage,
+  msg: ConsumeMessage
 ): Promise<void> {
   const event = data as DeploymentRequestedEvent;
   const { deploymentId, requestId } = event;
 
-  // x-death headers injected by RabbitMQ DLX
   const xDeath = msg.properties.headers?.["x-death"];
   const reason = Array.isArray(xDeath) ? xDeath[0]?.reason : "unknown";
   const originalQueue = Array.isArray(xDeath) ? xDeath[0]?.queue : "unknown";
 
   try {
-    await deploymentRepository.markFailed(
-      deploymentId,
-      `Dead lettered after max retries. Reason: ${reason}`,
-    );
+    await deploymentRepository.updateStatus(deploymentId, "failed", {
+      lastError: `Dead lettered after max retries. Reason: ${reason}`,
+    });
 
     logger.error("deployment_dead_lettered", {
       event: "deployment_dead_lettered",
@@ -156,7 +164,7 @@ async function handleDeploymentDead(
       originalQueue,
     });
 
-    channel.ack(msg); // always ack dead letter — don't requeue
+    channel.ack(msg);
   } catch (err) {
     logger.error("deployment_dead_handler_failed", {
       event: "deployment_dead_handler_failed",
@@ -164,20 +172,22 @@ async function handleDeploymentDead(
       deploymentId,
       error: err instanceof Error ? err.message : String(err),
     });
-    channel.ack(msg); // still ack — nacking a dead letter causes infinite loops
+    channel.ack(msg);
   }
 }
 
 async function handleDeploymentFailed(
   data: unknown,
   channel: Channel,
-  msg: ConsumeMessage,
+  msg: ConsumeMessage
 ): Promise<void> {
   const event = data as DeploymentFailedEvent;
   const { deploymentId, requestId, error } = event;
 
   try {
-    await deploymentRepository.markFailed(deploymentId, error);
+    await deploymentRepository.updateStatus(deploymentId, "failed", {
+      lastError: error,
+    });
 
     logger.error("deployment_failed", {
       event: "deployment_failed",
@@ -195,7 +205,7 @@ async function handleDeploymentFailed(
       deploymentId,
       error: err instanceof Error ? err.message : String(err),
     });
-    channel.nack(msg, false, true); // requeue
+    channel.nack(msg, false, true);
   }
 }
 
@@ -239,7 +249,7 @@ export async function connectDeploymentConsumer(): Promise<void> {
 
         await handler(data, channel, msg);
       },
-      { noAck: false },
+      { noAck: false }
     );
 
     logger.info("deployment_consumer_started", {
