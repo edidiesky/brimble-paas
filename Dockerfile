@@ -14,6 +14,8 @@ COPY tsconfig.json ./
 
 RUN npx tsc
 
+RUN cp -r src/infra/migrations dist/infra/migrations
+
 FROM node:18-alpine
 
 WORKDIR /app
@@ -23,7 +25,6 @@ RUN addgroup -g 1001 brimble-paas && \
 
 RUN apk add --no-cache curl git docker-cli
 
-# Install railpack - musl build for Alpine
 RUN curl -fsSL \
     "https://github.com/railwayapp/railpack/releases/download/v0.23.0/railpack-v0.23.0-x86_64-unknown-linux-musl.tar.gz" \
     -o /tmp/railpack.tar.gz && \
@@ -36,6 +37,7 @@ COPY package.json package-lock.json ./
 
 RUN npm ci --only=production && npm cache clean --force
 
+# dist now includes compiled JS + SQL migrations from builder stage
 COPY --from=builder /app/dist ./dist
 
 RUN mkdir -p /app/workspaces/uploads && \

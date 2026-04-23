@@ -1,9 +1,10 @@
-import { v4 as uuidv4 } from "uuid";
+
 import { getPool } from "../../infra/db/pool";
 import type { IDeployment, DeploymentStatus } from "../../shared/types";
 import { createLogger } from "../../shared/utils/logger";
 import { SERVICE_NAME } from "../../shared/constants";
 import type { PoolClient } from "pg";
+import { v4 } from "uuid";
 
 const logger = createLogger(SERVICE_NAME);
 
@@ -32,7 +33,7 @@ class DeploymentRepository {
     client?: PoolClient
   ): Promise<IDeployment> {
     const db = client ?? getPool();
-    const id = uuidv4();
+    const id = v4();
 
     const { rows } = await db.query(
       `INSERT INTO deployments (id, name, source_type, source_ref)
