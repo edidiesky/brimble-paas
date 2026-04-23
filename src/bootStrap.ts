@@ -7,29 +7,39 @@ import { startOutboxPoller } from "./shared/utils/outbox-poller";
 
 const logger = createLogger(SERVICE_NAME);
 
+const buidInitSteps: Array<{ name: string; fn: () => void }> = [
+  {
+    name: "PostgreSQL",
+    fn: () => connectPostgres(DATABASE_URL),
+  },
+  {
+    name: "RabbitMQ Connection",
+    fn: () => connectRabbitMQ(),
+  },
+  {
+    name: "Deployment Consuemr",
+    fn: () => connectDeploymentConsumer(),
+  },
+  {
+    name: "Outbox Poller",
+    fn: () => startOutboxPoller(),
+  },
+];
+
 export async function bootStrap(): Promise<void> {
-  await connectPostgres(DATABASE_URL);
-
-  await connectRabbitMQ();
-  logger.info("rabbitmq_connected", {
-    event: "rabbitmq_connected",
-    service: SERVICE_NAME,
-  });
-
-  await connectDeploymentConsumer();
-  logger.info("consumers_started", {
-    event: "consumers_started",
-    service: SERVICE_NAME,
-  });
-
-  logger.info("bootstrap_complete", {
-    event: "bootstrap_complete",
-    service: SERVICE_NAME,
-  });
-
-  startOutboxPoller();
-  logger.info("outbox_poller_started", {
-    event: "outbox_poller_started",
-    service: SERVICE_NAME,
-  });
+  const steps = buidInitSteps;
+  for (let step of steps) {
+    try {
+      step.fn();
+      logger.info(`${step.name} has been initialized succesfully!`, {
+        event: `${step.name}_started`,
+        service: SERVICE_NAME,
+      });
+    } catch (error) {
+      logger.info(`${step.name} failed to be initialized succesfully!`, {
+        event: `${step.name}_failed_startup`,
+        service: SERVICE_NAME,
+      });
+    }
+  }
 }

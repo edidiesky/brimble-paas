@@ -12,6 +12,7 @@ volumes:
   grafana_data:
   postgres_data:
   workspaces_data:
+  buildkit_data:
 
 services:
   postgres:
@@ -180,11 +181,29 @@ services:
       retries: 5
       start_period: 10s
 
+  buildkit:
+    image: moby/buildkit:latest
+    container_name: brimble_buildkit
+    privileged: true
+    restart: unless-stopped
+    ports:
+      - "1234:1234"
+    command:
+      - --addr
+      - tcp://0.0.0.0:1234
+      - --addr
+      - unix:///run/buildkit/buildkitd.sock
+    networks:
+      - brimble-network
+    volumes:
+      - buildkit_data:/var/lib/buildkit
+
   api:
     build:
       context: ..
       dockerfile: Dockerfile
     container_name: brimble_api
+    user: root 
     ports:
       - "3000:3000"
       - "9464:9464"
@@ -198,6 +217,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      buildkit:
+        condition: service_started
       redis:
         condition: service_healthy
       rabbitmq:

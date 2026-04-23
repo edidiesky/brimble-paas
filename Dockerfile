@@ -23,7 +23,7 @@ WORKDIR /app
 RUN addgroup -g 1001 brimble-paas && \
     adduser -S brimble-paas -u 1001 -G brimble-paas
 
-RUN apk add --no-cache curl git docker-cli
+RUN apk add --no-cache curl git docker-cli docker-cli-buildx
 
 RUN curl -fsSL \
     "https://github.com/railwayapp/railpack/releases/download/v0.23.0/railpack-v0.23.0-x86_64-unknown-linux-musl.tar.gz" \
@@ -33,11 +33,18 @@ RUN curl -fsSL \
     rm /tmp/railpack.tar.gz && \
     railpack --version
 
+# Pre-download mise at exact version and path railpack expects
+RUN mkdir -p /tmp/railpack/mise && \
+    curl -fsSL \
+    "https://github.com/jdx/mise/releases/download/v2026.3.17/mise-v2026.3.17-linux-x64-musl" \
+    -o "/tmp/railpack/mise/mise-2026.3.17" && \
+    chmod +x "/tmp/railpack/mise/mise-2026.3.17" && \
+    chown -R brimble-paas:brimble-paas /tmp/railpack
+
 COPY package.json package-lock.json ./
 
 RUN npm ci --only=production && npm cache clean --force
 
-# dist now includes compiled JS + SQL migrations from builder stage
 COPY --from=builder /app/dist ./dist
 
 RUN mkdir -p /app/workspaces/uploads && \

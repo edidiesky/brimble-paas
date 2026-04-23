@@ -16,7 +16,7 @@ export function createLogWriter(deploymentId: string): LogWriter {
       .insert({ deploymentId, seq: currentSeq, ts, line, phase })
       .catch(() => {});
 
-    // Fan out to SSE subscribers
+    // Fanning out to SSE subscribers
     deploymentEventBus.emitLog({
       deploymentId,
       seq: currentSeq,
