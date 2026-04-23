@@ -12,9 +12,20 @@ export async function buildStep(
   log(`Building image: ${imageTag}`, "build");
 
   return new Promise((resolve, reject) => {
-    const proc = spawn("railpack", ["build", "--name", imageTag, workDir], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const proc = spawn(
+      "railpack",
+      [
+        "build",
+        "--name",
+        imageTag,
+        "--build-cmd",
+        "npm install --legacy-peer-deps && npm run build",
+        workDir,
+      ],
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
 
     proc.stdout.on("data", (chunk: Buffer) => {
       chunk

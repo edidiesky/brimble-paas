@@ -42,7 +42,7 @@ class DockerService {
             "3000/tcp": [{ HostPort: String(hostPort) }],
           },
           RestartPolicy: { Name: "unless-stopped" },
-          NetworkMode: "brimble_brimble",
+          NetworkMode: "brimble_brimble-network",
         },
       });
 

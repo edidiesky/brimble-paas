@@ -8,6 +8,7 @@ import deploymentRoutes from "./domains/deployment/deployment.routes";
 import deadLetterRoutes from "./domains/dead-letter/dead-letter.routes";
 import { createLogger } from "./shared/utils/logger";
 import { SERVICE_NAME, NODE_ENV } from "./shared/constants";
+import deploymentLogRoutes from "./domains/deployment-log/deployment-log.routes";
 
 const logger = createLogger(SERVICE_NAME);
 const app = express();
@@ -54,8 +55,9 @@ app.get("/health", (_req, res) => {
 });
 
 // API routes
-app.use("/api/deployments", deploymentRoutes);
-app.use("/api/dead-letters", deadLetterRoutes);
+app.use("/api/v1/deployments", deploymentRoutes);
+app.use("/api/v1/dead-letters", deadLetterRoutes);
+app.use("/api/v1/deployment-logs", deploymentLogRoutes);
 
 app.use(errorHandler);
 

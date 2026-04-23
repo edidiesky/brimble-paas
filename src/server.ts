@@ -2,13 +2,22 @@ import { app } from "./app";
 import { bootStrap } from "./bootStrap";
 import { registerShutdownHooks } from "./shutdown";
 import { createLogger } from "./shared/utils/logger";
-import { SERVICE_NAME, PORT, METRICS_PORT } from "./shared/constants";
+import { SERVICE_NAME, PORT } from "./shared/constants";
+
 const logger = createLogger(SERVICE_NAME);
 
 async function main(): Promise<void> {
   await bootStrap();
-  const server = app.listen(PORT, ()=> {})
-  await registerShutdownHooks(server)
+
+  const server = app.listen(PORT, () => {
+    logger.info("server has started succesfully!", {
+      event: "server_started",
+      service: SERVICE_NAME,
+      port: PORT,
+    });
+  });
+
+  registerShutdownHooks(server);
 }
 
 main().catch((err) => {

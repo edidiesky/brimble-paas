@@ -7,7 +7,6 @@ networks:
 volumes:
   rabbitmq_data:
   redis-data:
-  redis-insight-data:
   prom_data:
   grafana_data:
   postgres_data:
@@ -84,20 +83,6 @@ services:
         reservations:
           memory: 128M
 
-  redis-insight:
-    image: redislabs/redisinsight:latest
-    container_name: brimble_redis_insight
-    ports:
-      - "8001:8001"
-    networks:
-      - brimble-network
-    volumes:
-      - redis-insight-data:/db
-    restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
-
   redis-exporter:
     image: oliver006/redis_exporter:latest
     container_name: brimble_redis_exporter
@@ -144,25 +129,6 @@ services:
           memory: 1G
         reservations:
           memory: 512M
-
-  rabbitmq-exporter:
-    image: kbudde/rabbitmq-exporter:latest
-    container_name: brimble_rabbitmq_exporter
-    environment:
-      RABBIT_URL: http://rabbitmq:15672
-      RABBIT_USER: ${RABBITMQ_USER:-brimble_user}
-      RABBIT_PASSWORD: ${RABBITMQ_PASS:-brimble_pass}
-      RABBIT_VHOST: brimble
-      PUBLISH_PORT: "9419"
-    ports:
-      - "9419:9419"
-    networks:
-      - brimble-network
-    restart: unless-stopped
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
   caddy:
     image: caddy:2-alpine
     container_name: brimble_caddy
@@ -262,7 +228,6 @@ services:
     depends_on:
       - api
       - redis-exporter
-      - rabbitmq-exporter
 
   loki:
     image: grafana/loki:2.9.4

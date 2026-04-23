@@ -10,6 +10,7 @@ interface FileValidationOptions {
 
 interface ValidateRequestOptions {
   body?: Schema;
+  query?: Schema;
   file?: FileValidationOptions;
 }
 
@@ -17,7 +18,7 @@ export function validateRequest(options: ValidateRequestOptions) {
   return (req: Request, res: Response, next: NextFunction): void => {
     // Body validation
     if (options.body) {
-      const { error } = options.body.validate(req.body, {
+      const { error, value } = options.body.validate(req.body, {
         abortEarly: true,
         stripUnknown: true,
       });
@@ -28,9 +29,28 @@ export function validateRequest(options: ValidateRequestOptions) {
         });
         return;
       }
+
+      req.body = value;
     }
 
-    // File validation
+    // Query validation
+    if (options.query) {
+      const { error, value } = options.query.validate(req.query, {
+        abortEarly: true,
+        stripUnknown: true,
+        convert: true,
+      });
+
+      if (error) {
+        res.status(HTTP_STATUS.BAD_REQUEST).json({
+          error: error.details[0].message,
+        });
+        return;
+      }
+
+      req.query = value;
+    }
+
     if (options.file) {
       const { required, mimeTypes, maxSizeBytes } = options.file;
 
