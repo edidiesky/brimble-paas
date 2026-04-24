@@ -76,3 +76,68 @@ Phase 10: Sample App + Docs
 
  48. sample-app/
  49. README.md
+
+
+
+
+
+
+## Frontend Tasks
+Setup (done)
+
+ Vite + React + TypeScript
+ Tailwind v4
+ shadcn/ui
+ TanStack Router + Query
+ lucide-react, date-fns, DM Sans
+
+Types and API layer
+
+ (done) src/types/index.ts - IDeployment, IDeploymentLog, IDeadLetter interfaces
+ (done) src/api/client.ts - base fetch wrapper pointing to http://localhost:3000
+ (done) src/api/deployments.ts - listDeployments, getDeployment, createDeployment
+ (done) src/api/logs.ts - getDeploymentLogs, getLogCount
+ (done) src/hooks/useLogStream.ts - SSE hook wrapping EventSource
+
+Layout
+
+ (done) src/components/layout/Sidebar.tsx - nav items: Overview, Deployments, Logs, Analytics
+ (done) src/components/layout/AppShell.tsx - sidebar + main content wrapper
+
+Components
+
+ src/components/deployments/StatusBadge.tsx - green/red/yellow dot + label
+ src/components/deployments/DeploymentRow.tsx - single row matching Vercel style
+ src/components/deployments/DeploymentList.tsx - list with filters bar
+ src/components/deployments/DeployForm.tsx - modal or drawer to trigger new deployment
+ src/components/logs/LogStream.tsx - terminal-style live log viewer
+
+Routes
+
+ (done) src/routes/__root.tsx - root layout wrapping AppShell
+ (done) src/routes/index.tsx - redirect to /deployments
+ (done) src/routes/deployments.tsx - deployments list page
+ (done) src/routes/deployments.$id.tsx - deployment detail + log stream
+
+Polish
+
+ Loading skeletons for deployment list
+ Error boundary for failed fetches
+ Empty state for no deployments
+ Relative timestamps using date-fns
+ Auto-scroll to bottom on log stream
+ SSE reconnect on disconnect
+
+
+DevOps Tasks
+
+ Add ui/Dockerfile for the frontend container
+ Add ui service to docker-compose.dev.yml
+ Confirm CORS is enabled on the API for localhost:5173
+
+
+Submission Tasks
+
+ README with setup instructions, architecture diagram, and API reference
+ Deploy to Brimble using our own platform
+ Record a short demo video or screenshots

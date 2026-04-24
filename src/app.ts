@@ -15,7 +15,13 @@ const app = express();
 
 // Security
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin: [process.env.WEB_oRIGIN as string],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
+  }),
+);
 
 // Request parsing
 app.use(express.json({ limit: "1mb" }));
