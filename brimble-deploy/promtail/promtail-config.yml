@@ -26,12 +26,13 @@ scrape_configs:
     pipeline_stages:
       - json:
           expressions:
-            service: service
             level: level
             event: event
+            domain: domain
       - labels:
-          service:
           level:
+          event:
+          domain:
       - timestamp:
           source: timestamp
-          format: "YYYY-MM-DD HH:mm:ss"
+          format: RFC3339

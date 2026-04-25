@@ -74,11 +74,6 @@ app.use("/api/v1/deployments", deploymentRoutes);
 app.use("/api/v1/dead-letters", deadLetterRoutes);
 app.use("/api/v1/deployment-logs", deploymentLogRoutes);
 
-// Prometheus scrape endpoint
-app.get("/metrics", async (_req, res) => {
-  res.set("Content-Type", brimbleRegistry.contentType);
-  res.end(await brimbleRegistry.metrics());
-});
 app.use(errorHandler);
 
 export { app };
