@@ -13,23 +13,20 @@ interface GetLogsOptions {
   page: number;
   limit: number;
 }
+
 const DOMAIN = "deployment-log";
 
 class DeploymentLogService {
-  async getLogs(
-    options: GetLogsOptions
-  ): Promise<PaginatedResult<IDeploymentLog>> {
+  async getLogs(options: GetLogsOptions): Promise<PaginatedResult<IDeploymentLog>> {
     const { deploymentId, phase, page, limit } = options;
 
-    // Verify rhat teh deployment exists
     const deployment = await deploymentRepository.findById(deploymentId);
     if (!deployment) {
       throw new NotFoundError("Deployment", deploymentId);
     }
-
     const allLogs = await deploymentLogRepository.findByDeploymentId(
       deploymentId,
-      phase
+      phase,
     );
 
     const totalCount = allLogs.length;
@@ -39,10 +36,11 @@ class DeploymentLogService {
     logger.info("deployment_log_service_fetched", {
       event: "deployment_log_service_fetched",
       service: SERVICE_NAME,
-      domain:DOMAIN,
+      domain: DOMAIN,
       deploymentId,
-      phase,
+      phase: phase ?? "all",
       totalCount,
+      returned: data.length,
       page,
       limit,
     });

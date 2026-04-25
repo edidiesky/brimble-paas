@@ -1,7 +1,15 @@
-import { v4 as uuidv4 } from "uuid";
 import { getPool } from "../../infra/db/pool";
+import { measureDatabaseQuery } from "../../shared/utils/metrics";
+import {
+  cacheGetJson,
+  cacheSetJson,
+  cacheDelByPattern,
+} from "../../infra/cache/cache.client";
+import { CacheKeys, CacheTTL, InvalidationPatterns } from "../../infra/cache/cache.keys";
 import type { IDeploymentLog, LogPhase } from "../../shared/types";
 import type { PoolClient } from "pg";
+
+const DOMAIN = "deployment-log";
 
 function rowToLog(row: Record<string, unknown>): IDeploymentLog {
   return {
@@ -15,89 +23,118 @@ function rowToLog(row: Record<string, unknown>): IDeploymentLog {
 }
 
 class DeploymentLogRepository {
-  async insert(
-    log: Omit<IDeploymentLog, "id">,
-    client?: PoolClient
-  ): Promise<void> {
+  async insert(log: Omit<IDeploymentLog, "id">, client?: PoolClient): Promise<void> {
     const db = client ?? getPool();
-    await db.query(
-      `INSERT INTO deployment_logs (id, deployment_id, seq, ts, line, phase)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (deployment_id, seq) DO NOTHING`,
-      [uuidv4(), log.deploymentId, log.seq, log.ts, log.line, log.phase]
+
+    await measureDatabaseQuery(
+      "deployment_log_insert",
+      () =>
+        db.query(
+          `INSERT INTO deployment_logs (id, deployment_id, seq, ts, line, phase)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+           ON CONFLICT (deployment_id, seq) DO NOTHING`,
+          [log.deploymentId, log.seq, log.ts, log.line, log.phase],
+        ),
+      DOMAIN,
+    );
+
+    await cacheDelByPattern(
+      InvalidationPatterns.deploymentLogs(log.deploymentId),
+      DOMAIN,
+      "log_inserted",
     );
   }
 
   async insertMany(
     logs: Omit<IDeploymentLog, "id">[],
-    client?: PoolClient
+    client?: PoolClient,
   ): Promise<void> {
     if (logs.length === 0) return;
     const db = client ?? getPool();
 
-    const values = logs
-      .map((_, i) => {
-        const base = i * 6;
-        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
-      })
-      .join(", ");
+    await measureDatabaseQuery(
+      "deployment_log_insert_many",
+      () =>
+        db.query(
+          `INSERT INTO deployment_logs (id, deployment_id, seq, ts, line, phase)
+           SELECT gen_random_uuid(), * FROM unnest(
+             $1::uuid[],
+             $2::int[],
+             $3::timestamptz[],
+             $4::text[],
+             $5::text[]
+           )
+           ON CONFLICT (deployment_id, seq) DO NOTHING`,
+          [
+            logs.map((l) => l.deploymentId),
+            logs.map((l) => l.seq),
+            logs.map((l) => l.ts),
+            logs.map((l) => l.line),
+            logs.map((l) => l.phase),
+          ],
+        ),
+      DOMAIN,
+    );
 
-    const params = logs.flatMap((log) => [
-      uuidv4(),
-      log.deploymentId,
-      log.seq,
-      log.ts,
-      log.line,
-      log.phase,
-    ]);
-
-    await db.query(
-      `INSERT INTO deployment_logs (id, deployment_id, seq, ts, line, phase)
-       VALUES ${values}
-       ON CONFLICT (deployment_id, seq) DO NOTHING`,
-      params
+    await cacheDelByPattern(
+      InvalidationPatterns.deploymentLogs(logs[0].deploymentId),
+      DOMAIN,
+      "logs_bulk_inserted",
     );
   }
 
   async findByDeploymentId(
     deploymentId: string,
-    phase?: LogPhase
+    phase?: LogPhase,
   ): Promise<IDeploymentLog[]> {
-    if (phase) {
-      const { rows } = await getPool().query(
-        `SELECT * FROM deployment_logs
-         WHERE deployment_id = $1 AND phase = $2
-         ORDER BY seq ASC`,
-        [deploymentId, phase]
-      );
-      return rows.map(rowToLog);
+    const cacheKey = CacheKeys.deploymentLogs(deploymentId, phase);
+
+    const cached = await cacheGetJson<IDeploymentLog[]>(cacheKey, DOMAIN);
+    if (cached !== null) return cached;
+
+    const result = await measureDatabaseQuery(
+      "deployment_log_find_by_deployment",
+      async () => {
+        if (phase) {
+          const { rows } = await getPool().query(
+            `SELECT * FROM deployment_logs
+             WHERE deployment_id = $1 AND phase = $2
+             ORDER BY seq ASC`,
+            [deploymentId, phase],
+          );
+          return rows.map(rowToLog);
+        }
+
+        const { rows } = await getPool().query(
+          `SELECT * FROM deployment_logs
+           WHERE deployment_id = $1
+           ORDER BY seq ASC`,
+          [deploymentId],
+        );
+        return rows.map(rowToLog);
+      },
+      DOMAIN,
+    );
+
+    if (result.length > 0) {
+      await cacheSetJson(cacheKey, result, DOMAIN, CacheTTL.DEPLOYMENT_LOGS);
     }
 
-    const { rows } = await getPool().query(
-      `SELECT * FROM deployment_logs
-       WHERE deployment_id = $1
-       ORDER BY seq ASC`,
-      [deploymentId]
-    );
-    return rows.map(rowToLog);
-  }
-
-  async getNextSeq(deploymentId: string): Promise<number> {
-    const { rows } = await getPool().query(
-      `SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq
-       FROM deployment_logs
-       WHERE deployment_id = $1`,
-      [deploymentId]
-    );
-    return rows[0].next_seq as number;
+    return result;
   }
 
   async countByDeploymentId(deploymentId: string): Promise<number> {
-    const { rows } = await getPool().query(
-      "SELECT COUNT(*) AS count FROM deployment_logs WHERE deployment_id = $1",
-      [deploymentId]
+    return measureDatabaseQuery(
+      "deployment_log_count",
+      async () => {
+        const { rows } = await getPool().query(
+          "SELECT COUNT(*) AS count FROM deployment_logs WHERE deployment_id = $1",
+          [deploymentId],
+        );
+        return parseInt(rows[0].count as string, 10);
+      },
+      DOMAIN,
     );
-    return parseInt(rows[0].count as string, 10);
   }
 }
 

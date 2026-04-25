@@ -1,6 +1,8 @@
 import { getPool } from "../../infra/db/pool";
 import { deadLetterRepository } from "./dead-letter.repository";
 import { outboxRepository } from "../outbox/outbox.repository";
+import { cacheDelByPattern } from "../../infra/cache/cache.client";
+import { InvalidationPatterns } from "../../infra/cache/cache.keys";
 import { createLogger } from "../../shared/utils/logger";
 import { SERVICE_NAME } from "../../shared/constants";
 import type { IDeadLetter, JobType, PaginatedResult } from "../../shared/types";
@@ -19,6 +21,7 @@ interface DeadLetterInput {
 }
 
 const DOMAIN = "dead-letter";
+
 class DeadLetterService {
   async create(input: DeadLetterInput): Promise<void> {
     const pool = getPool();
@@ -27,6 +30,9 @@ class DeadLetterService {
     try {
       await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ");
 
+      // Pass the transaction client so both writes are in the same transaction.
+      // The repository's cache invalidation is skipped when a client is passed
+      // because we have not committed yet. We invalidate manually after COMMIT.
       await deadLetterRepository.create(
         {
           jobId: input.jobId,
@@ -61,24 +67,31 @@ class DeadLetterService {
       );
 
       await client.query("COMMIT");
+      await cacheDelByPattern(
+        InvalidationPatterns.allDeadLetterLists(),
+        DOMAIN,
+        "dead_letter_created",
+      );
 
-      logger.error("dead_letter_service_created", {
+      logger.info("dead_letter_service_created", {
         event: "dead_letter_service_created",
         service: SERVICE_NAME,
-        domain:DOMAIN,
+        domain: DOMAIN,
         jobId: input.jobId,
         jobType: input.jobType,
         attempts: input.attempts,
       });
+
       deadLetterCreatedCounter.inc({ job_type: input.jobType });
     } catch (error) {
       await client.query("ROLLBACK");
-trackError("dead_letter_create_failed", "dead_letter_create", "dead-letter", "high");
+
+      trackError("dead_letter_create_failed", "dead_letter_create", DOMAIN, "high");
 
       logger.error("dead_letter_service_create_failed", {
         event: "dead_letter_service_create_failed",
         service: SERVICE_NAME,
-        domain:DOMAIN,
+        domain: DOMAIN,
         jobId: input.jobId,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -102,17 +115,14 @@ trackError("dead_letter_create_failed", "dead_letter_create", "dead-letter", "hi
     return deadLetterRepository.findByJobId(jobId);
   }
 
-  async resolve(
-    jobId: string,
-    resolution: string,
-  ): Promise<IDeadLetter | null> {
+  async resolve(jobId: string, resolution: string): Promise<IDeadLetter | null> {
     const doc = await deadLetterRepository.resolve(jobId, "system", resolution);
 
     if (doc) {
       logger.info("dead_letter_service_resolved", {
         event: "dead_letter_service_resolved",
         service: SERVICE_NAME,
-        domain:DOMAIN,
+        domain: DOMAIN,
         jobId,
       });
     }

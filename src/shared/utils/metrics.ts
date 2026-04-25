@@ -8,7 +8,8 @@ client.collectDefaultMetrics({
   register,
 });
 
-// HTTP metrics
+//  HTTP metrics 
+
 export const requestDurationHistogram = new client.Histogram({
   name: "brimble_http_request_duration_seconds",
   help: "HTTP request duration in seconds",
@@ -31,6 +32,8 @@ export const httpErrorCounter = new client.Counter({
   registers: [register],
 });
 
+//  DB metrics 
+
 export const databaseQueryDuration = new client.Histogram({
   name: "brimble_db_query_duration_seconds",
   help: "Database query duration in seconds",
@@ -45,6 +48,74 @@ export const databaseQueryErrors = new client.Counter({
   labelNames: ["operation", "domain"],
   registers: [register],
 });
+
+//  DB pool metrics 
+// Tracks pg.Pool internals: checkout wait time, idle/total/waiting counts.
+
+export const dbPoolCheckoutDuration = new client.Histogram({
+  name: "brimble_db_pool_checkout_duration_seconds",
+  help: "Time spent waiting to acquire a connection from the pg pool",
+  buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0],
+  registers: [register],
+});
+
+export const dbPoolSize = new client.Gauge({
+  name: "brimble_db_pool_size_total",
+  help: "Total connections in the pg pool (idle + active)",
+  registers: [register],
+});
+
+export const dbPoolIdleConnections = new client.Gauge({
+  name: "brimble_db_pool_idle_connections",
+  help: "Idle connections in the pg pool",
+  registers: [register],
+});
+
+export const dbPoolWaitingCount = new client.Gauge({
+  name: "brimble_db_pool_waiting_count",
+  help: "Queries waiting for a free pg pool connection",
+  registers: [register],
+});
+
+//  Cache metrics 
+
+export const cacheHitsTotal = new client.Counter({
+  name: "brimble_cache_hits_total",
+  help: "Cache hits by domain and operation",
+  labelNames: ["domain", "operation"],
+  registers: [register],
+});
+
+export const cacheMissesTotal = new client.Counter({
+  name: "brimble_cache_misses_total",
+  help: "Cache misses by domain and operation",
+  labelNames: ["domain", "operation"],
+  registers: [register],
+});
+
+export const cacheErrorsTotal = new client.Counter({
+  name: "brimble_cache_errors_total",
+  help: "Cache errors by domain and operation",
+  labelNames: ["domain", "operation"],
+  registers: [register],
+});
+
+export const cacheOperationDuration = new client.Histogram({
+  name: "brimble_cache_operation_duration_seconds",
+  help: "Cache operation latency by domain and operation",
+  labelNames: ["domain", "operation"],
+  buckets: [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05],
+  registers: [register],
+});
+
+export const cacheInvalidationsTotal = new client.Counter({
+  name: "brimble_cache_invalidations_total",
+  help: "Cache key invalidations triggered by write operations",
+  labelNames: ["domain", "reason"],
+  registers: [register],
+});
+
+//  Service init metrics 
 
 export const serviceInitCounter = new client.Counter({
   name: "brimble_service_init_attempts_total",
@@ -61,7 +132,8 @@ export const serviceInitDuration = new client.Histogram({
   registers: [register],
 });
 
-// Worker / consumer metrics
+//  Worker / consumer metrics 
+
 export const workerTasksTotal = new client.Counter({
   name: "brimble_worker_tasks_total",
   help: "Tasks processed by worker consumers",
@@ -83,7 +155,8 @@ export const workerQueueDepth = new client.Gauge({
   labelNames: ["topic"],
 });
 
-// Pipeline metrics per domain + phase
+//  Pipeline metrics 
+
 export const pipelineDuration = new client.Histogram({
   name: "brimble_pipeline_duration_seconds",
   help: "Deployment pipeline phase duration",
@@ -99,7 +172,8 @@ export const pipelineErrors = new client.Counter({
   registers: [register],
 });
 
-// General error counter
+//  General error counter 
+
 export const errorCounter = new client.Counter({
   name: "brimble_errors_total",
   help: "Total errors",
@@ -113,21 +187,21 @@ export const serviceHealth = new client.Gauge({
   registers: [register],
 });
 
-// Helper: track an error
+//  Helpers 
+
 export const trackError = (
   errorType: string,
   operation: string,
   domain: string,
-  severity: "low" | "medium" | "high" | "critical" = "medium"
+  severity: "low" | "medium" | "high" | "critical" = "medium",
 ) => {
   errorCounter.inc({ error_type: errorType, operation, domain, severity });
 };
 
-// Helper: wrap a DB query with duration + error tracking
 export async function measureDatabaseQuery<T>(
   operation: string,
   fn: () => Promise<T>,
-  domain: string
+  domain: string,
 ): Promise<T> {
   const end = databaseQueryDuration.startTimer({ operation, domain });
   try {
@@ -153,7 +227,7 @@ export async function measureDatabaseQuery<T>(
 export function trackHttpRequest(
   req: Request,
   res: Response,
-  startTime: [number, number]
+  startTime: [number, number],
 ) {
   const [sec, ns] = process.hrtime(startTime);
   const durationSeconds = sec + ns / 1e9;
@@ -183,7 +257,7 @@ export function trackHttpRequest(
 export async function measurePipelinePhase<T>(
   phase: string,
   domain: string,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> {
   const end = pipelineDuration.startTimer({ phase, domain });
   try {
