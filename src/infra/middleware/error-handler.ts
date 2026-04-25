@@ -1,50 +1,55 @@
-import type { Request, Response, NextFunction } from "express";
-import { isAppError } from "../../shared/utils/error";
+import { Request, Response, NextFunction } from "express";
 import { createLogger } from "../../shared/utils/logger";
-import { SERVICE_NAME, HTTP_STATUS } from "../../shared/constants";
-import type { AuthenticatedRequest } from "../../shared/types";
+import { SERVICE_NAME } from "../../shared/constants";
 
 const logger = createLogger(SERVICE_NAME);
 
+interface AppErrorLike {
+  statusCode?: number;
+  message: string;
+  stack?: string;
+}
+
+function isPostgresError(err: unknown): err is { code: string; detail: string } {
+  return typeof err === "object" && err !== null && "code" in err;
+}
+
 export function errorHandler(
-  err: unknown, 
+  err: AppErrorLike,
   req: Request,
   res: Response,
   _next: NextFunction
 ): void {
-  const requestId = (req as AuthenticatedRequest).requestId;
+  const requestId = (req as unknown as { requestId: string }).requestId;
 
-  if (isAppError(err)) {
-    logger.warn("app_error", {
-      event: "app_error",
+  // Postgres unique violation
+  if (isPostgresError(err) && err.code === "23505") {
+    logger.warn("unique_constraint_violation", {
+      event: "unique_constraint_violation",
       service: SERVICE_NAME,
-      code: err.code,
-      message: err.message,
-      statusCode: err.statusCode,
-      context: err.context,
       requestId,
+      detail: err.detail,
     });
-
-    res.status(err.statusCode).json({
-      error: err.message,
-      code: err.code,
-      ...(err.context && { context: err.context }),
+    res.status(409).json({
+      error: "A resource with this name already exists",
+      detail: err.detail,
     });
     return;
   }
 
-  const message = err instanceof Error ? err.message : "Internal server error";
+  const statusCode = err.statusCode ?? 500;
 
-  logger.error("unhandled_error", {
-    event: "unhandled_error",
-    service: SERVICE_NAME,
-    message,
-    stack: err instanceof Error ? err.stack : undefined,
-    requestId,
-  });
+  if (statusCode >= 500) {
+    logger.error("unhandled_error", {
+      event: "unhandled_error",
+      service: SERVICE_NAME,
+      requestId,
+      message: err.message,
+      stack: err.stack,
+    });
+  }
 
-  res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-    error: "Internal server error",
-    code: "INTERNAL_SERVER_ERROR",
+  res.status(statusCode).json({
+    error: err.message ?? "Internal server error",
   });
 }

@@ -4,6 +4,8 @@ import { outboxRepository } from "../outbox/outbox.repository";
 import { createLogger } from "../../shared/utils/logger";
 import { SERVICE_NAME } from "../../shared/constants";
 import type { IDeadLetter, JobType, PaginatedResult } from "../../shared/types";
+import { deadLetterCreatedCounter } from "../../shared/utils/dlqMetrics";
+import { trackError } from "../../shared/utils/metrics";
 
 const logger = createLogger(SERVICE_NAME);
 
@@ -16,6 +18,7 @@ interface DeadLetterInput {
   lastError: string;
 }
 
+const DOMAIN = "dead-letter";
 class DeadLetterService {
   async create(input: DeadLetterInput): Promise<void> {
     const pool = getPool();
@@ -62,16 +65,20 @@ class DeadLetterService {
       logger.error("dead_letter_service_created", {
         event: "dead_letter_service_created",
         service: SERVICE_NAME,
+        domain:DOMAIN,
         jobId: input.jobId,
         jobType: input.jobType,
         attempts: input.attempts,
       });
+      deadLetterCreatedCounter.inc({ job_type: input.jobType });
     } catch (error) {
       await client.query("ROLLBACK");
+trackError("dead_letter_create_failed", "dead_letter_create", "dead-letter", "high");
 
       logger.error("dead_letter_service_create_failed", {
         event: "dead_letter_service_create_failed",
         service: SERVICE_NAME,
+        domain:DOMAIN,
         jobId: input.jobId,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -105,6 +112,7 @@ class DeadLetterService {
       logger.info("dead_letter_service_resolved", {
         event: "dead_letter_service_resolved",
         service: SERVICE_NAME,
+        domain:DOMAIN,
         jobId,
       });
     }

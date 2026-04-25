@@ -13,19 +13,16 @@ export async function buildStep(
 
   return new Promise((resolve, reject) => {
     const proc = spawn(
-      "railpack",
-      [
-        "build",
-        "--name",
-        imageTag,
-        "--build-cmd",
-        "npm install --legacy-peer-deps && npm run build",
-        workDir,
-      ],
-      {
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
+  "railpack",
+  [
+    "build",
+    "--name", imageTag,
+    "--build-cmd", "npm install && npm run build",
+    "--build-arg", `VITE_API_URL=https://your-api-domain.com`,
+    workDir,
+  ],
+  { stdio: ["ignore", "pipe", "pipe"] }
+);
 
     proc.stdout.on("data", (chunk: Buffer) => {
       chunk
@@ -59,4 +56,5 @@ export async function buildStep(
       }
     });
   });
+
 }

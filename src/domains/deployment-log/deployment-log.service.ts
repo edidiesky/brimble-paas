@@ -13,6 +13,7 @@ interface GetLogsOptions {
   page: number;
   limit: number;
 }
+const DOMAIN = "deployment-log";
 
 class DeploymentLogService {
   async getLogs(
@@ -38,6 +39,7 @@ class DeploymentLogService {
     logger.info("deployment_log_service_fetched", {
       event: "deployment_log_service_fetched",
       service: SERVICE_NAME,
+      domain:DOMAIN,
       deploymentId,
       phase,
       totalCount,

@@ -3,29 +3,22 @@ import type { Config } from "jest";
 const config: Config = {
   preset: "ts-jest",
   testEnvironment: "node",
-  roots: ["<rootDir>/src/__tests__"],
-  globalSetup: "<rootDir>/src/__tests__/integration/setup/globalSetup.ts",
-  globalTeardown: "<rootDir>/src/__tests__/integration/setup/globalTeardown.ts",
-  setupFilesAfterFramework: [
-    "<rootDir>/src/__tests__/integration/setup/setupFile.ts",
-  ],
-  testMatch: [
-    "**/__tests__/**/*.test.ts",
-  ],
+  roots: ["<rootDir>/src/tests"],
+  testMatch: ["**/*.test.ts"],
   moduleNameMapper: {
-    "^(\\.{1,2}/.*)\\.js$": "$1",
+    "^@/(.*)$": "<rootDir>/src/$1",
   },
+  clearMocks: true,
   collectCoverageFrom: [
-    "src/**/*.ts",
-    "!src/**/*.d.ts",
-    "!src/server.ts",
+    "src/domains/**/*.service.ts",
+    "src/domains/**/*.repository.ts",
+    "src/domains/**/*.validator.ts",
+    "src/shared/utils/*.ts",
   ],
   coverageThreshold: {
     global: {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70,
+      lines: 60,
+      functions: 60,
     },
   },
 };

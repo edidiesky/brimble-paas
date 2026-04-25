@@ -7,6 +7,7 @@ import { runStep } from "./steps/run";
 import { registerStep } from "./steps/register";
 import { createLogger } from "../../../shared/utils/logger";
 import { SERVICE_NAME } from "../../../shared/constants";
+import { measurePipelinePhase, trackError } from "../../../shared/utils/metrics";
 
 const logger = createLogger(SERVICE_NAME);
 
@@ -24,24 +25,30 @@ export class PipelineRunner {
       log("Pipeline started", "system");
 
       // clone
-      const workDir = await cloneStep(deploymentId, sourceType, sourceRef, log);
+      const workDir = await measurePipelinePhase("clone", deploymentId, () =>
+        cloneStep(deploymentId, sourceType, sourceRef, log),
+      );
 
       // build
-      const imageTag = await buildStep(deploymentId, workDir, log);
+      const imageTag = await measurePipelinePhase("build", deploymentId, () =>
+        buildStep(deploymentId, workDir, log),
+      );
       await deploymentRepository.updateStatus(deploymentId, "deploying", {
         imageTag,
       });
       deploymentEventBus.emitStatus(deploymentId, "deploying");
 
       // run
-      const { containerId, hostPort } = await runStep(
+      const { containerId, hostPort } = await measurePipelinePhase(
+        "run",
         deploymentId,
-        imageTag,
-        log,
+        () => runStep(deploymentId, imageTag, log),
       );
-
       // register
-      const url = await registerStep(deploymentId, hostPort, log);
+
+      const url = await measurePipelinePhase("register", deploymentId, () =>
+        registerStep(deploymentId, hostPort, log),
+      );
 
       await deploymentRepository.updateStatus(deploymentId, "running", {
         containerId,
@@ -61,6 +68,7 @@ export class PipelineRunner {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      trackError("pipeline_failed", "pipeline_run", deploymentId, "high");
 
       log(`Pipeline failed: ${message}`, "system");
 

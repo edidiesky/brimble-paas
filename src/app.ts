@@ -9,6 +9,7 @@ import deadLetterRoutes from "./domains/dead-letter/dead-letter.routes";
 import { createLogger } from "./shared/utils/logger";
 import { SERVICE_NAME, NODE_ENV } from "./shared/constants";
 import deploymentLogRoutes from "./domains/deployment-log/deployment-log.routes";
+import { brimbleRegistry, trackHttpRequest } from "./shared/utils/metrics";
 
 const logger = createLogger(SERVICE_NAME);
 const app = express();
@@ -55,6 +56,14 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use((req, res, next) => {
+  const startTime = process.hrtime();
+  res.on("finish", () => {
+    trackHttpRequest(req, res, startTime);
+  });
+  next();
+});
+
 // Health check
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", service: SERVICE_NAME });
@@ -65,6 +74,11 @@ app.use("/api/v1/deployments", deploymentRoutes);
 app.use("/api/v1/dead-letters", deadLetterRoutes);
 app.use("/api/v1/deployment-logs", deploymentLogRoutes);
 
+// Prometheus scrape endpoint
+app.get("/metrics", async (_req, res) => {
+  res.set("Content-Type", brimbleRegistry.contentType);
+  res.end(await brimbleRegistry.metrics());
+});
 app.use(errorHandler);
 
 export { app };

@@ -2,371 +2,199 @@ import { Request, Response } from "express";
 import client from "prom-client";
 
 const register = new client.Registry();
+
 client.collectDefaultMetrics({
-  prefix: "user_service_",
+  prefix: "brimble_",
   register,
 });
 
-// Existing metrics (improved)
-export const requestResponseTimeHistogram = new client.Histogram({
-  name: "user_http_request_duration_seconds",
-  help: "user API duration in seconds",
-  buckets: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0],
+// HTTP metrics
+export const requestDurationHistogram = new client.Histogram({
+  name: "brimble_http_request_duration_seconds",
+  help: "HTTP request duration in seconds",
+  buckets: [0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0],
   registers: [register],
   labelNames: ["method", "route", "status_code", "success"],
 });
 
 export const httpRequestCounter = new client.Counter({
-  name: "user_http_request_total",
-  help: "The total number of user API requests",
+  name: "brimble_http_requests_total",
+  help: "Total HTTP requests",
   labelNames: ["method", "route", "status_code", "success"],
   registers: [register],
 });
 
-export const serviceInitializationCounter = new client.Counter({
-  name: "user_service_initialization_attempts_total",
-  help: "Service initialization attempts",
-  labelNames: ["component", "status"],
-  registers: [register],
-
-});
-
-export const serviceInitializationDuration = new client.Histogram({
-  name: "user_service_initialization_duration_seconds",
-  help: "Service initialization duration",
-  buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60, 120],
-  labelNames: ["component", "status"],
-  registers: [register],
-});
-
-/**
- * @description Error Rate metrics
- */
-
-export const httpErrorsByRoute = new client.Counter({
-  name: "user_http_errors_total",
-  help: "HTTP errors by route and status code",
+export const httpErrorCounter = new client.Counter({
+  name: "brimble_http_errors_total",
+  help: "HTTP errors by route and type",
   labelNames: ["method", "route", "status_code", "error_type"],
   registers: [register],
 });
 
-export const httpErrorRate = new client.Gauge({
-  name: "user_http_error_rate",
-  help: "Current HTTP error rate (errors/sec)",
-  labelNames: ["route"],
+export const databaseQueryDuration = new client.Histogram({
+  name: "brimble_db_query_duration_seconds",
+  help: "Database query duration in seconds",
+  buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 2.0],
+  registers: [register],
+  labelNames: ["operation", "domain", "status"],
+});
+
+export const databaseQueryErrors = new client.Counter({
+  name: "brimble_db_query_errors_total",
+  help: "Total database query errors",
+  labelNames: ["operation", "domain"],
   registers: [register],
 });
 
-/**
- * @description Workers Metrics
- */
-export const UserWorkerTasksProcesses = new client.Counter({
-  name: "user_service_worker_tasks_processed",
-  help: "Number of tasks processed by the user service upload worker",
+export const serviceInitCounter = new client.Counter({
+  name: "brimble_service_init_attempts_total",
+  help: "Service initialization attempts",
+  labelNames: ["component", "status"],
   registers: [register],
-  labelNames: ["topic"],
 });
 
-export const UserWorkerQueueDepth = new client.Gauge({
-  name: "user_service_worker_queue_depth",
+export const serviceInitDuration = new client.Histogram({
+  name: "brimble_service_init_duration_seconds",
+  help: "Service initialization duration",
+  buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60],
+  labelNames: ["component", "status"],
+  registers: [register],
+});
+
+// Worker / consumer metrics
+export const workerTasksTotal = new client.Counter({
+  name: "brimble_worker_tasks_total",
+  help: "Tasks processed by worker consumers",
+  registers: [register],
+  labelNames: ["topic", "domain"],
+});
+
+export const workerErrors = new client.Counter({
+  name: "brimble_worker_errors_total",
+  help: "Worker consumer errors",
+  registers: [register],
+  labelNames: ["topic", "domain"],
+});
+
+export const workerQueueDepth = new client.Gauge({
+  name: "brimble_worker_queue_depth",
   help: "Current depth of worker queue",
   registers: [register],
   labelNames: ["topic"],
 });
 
-export const UserWorkerErrors = new client.Counter({
-  name: "user_service_worker_errors_total",
-  help: "Total number of errors in worker",
+// Pipeline metrics per domain + phase
+export const pipelineDuration = new client.Histogram({
+  name: "brimble_pipeline_duration_seconds",
+  help: "Deployment pipeline phase duration",
+  buckets: [1, 5, 10, 30, 60, 120, 300, 600],
   registers: [register],
-  labelNames: ["topic"],
+  labelNames: ["phase", "domain", "status"],
 });
 
-export const databaseQueryTimeHistogram = new client.Histogram({
-  name: "user_database_query_duration_seconds",
-  help: "user Database query duration in seconds",
-  buckets: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0],
+export const pipelineErrors = new client.Counter({
+  name: "brimble_pipeline_errors_total",
+  help: "Deployment pipeline errors",
+  labelNames: ["phase", "domain"],
   registers: [register],
-  labelNames: ["operation", "success", "table"],
 });
 
-// Error tracking metrics
+// General error counter
 export const errorCounter = new client.Counter({
-  name: "user_service_errors_total",
-  help: "Total number of errors in user service",
-  labelNames: ["error_type", "operation", "severity"],
+  name: "brimble_errors_total",
+  help: "Total errors",
+  labelNames: ["error_type", "operation", "domain", "severity"],
   registers: [register],
 });
 
-// Database connection metrics
-export const databaseConnectionsGauge = new client.Gauge({
-  name: "user_database_connections_active",
-  help: "Number of active database connections",
+export const serviceHealth = new client.Gauge({
+  name: "brimble_service_health",
+  help: "Service health (1=healthy, 0=unhealthy)",
   registers: [register],
 });
 
-export const databaseConnectionPoolGauge = new client.Gauge({
-  name: "user_database_connection_pool_size",
-  help: "Database connection pool size",
-  labelNames: ["state"],
-  registers: [register],
-});
-
-export const databaseConnectionAttempts = new client.Counter({
-  name: "user_database_connection_attempts_total",
-  help: "Total database connection attempts",
-  labelNames: ["status", "error_type"],
-    registers: [register],
-});
-
-export const databaseConnectionDuration = new client.Histogram({
-  name: "user_database_connection_duration_seconds",
-  help: "Database connection attempt duration",
-  buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60],
-  labelNames: ["status", "attempt"],
-    registers: [register],
-});
-
-
-// Cache metrics
-export const cacheHitCounter = new client.Counter({
-  name: "user_cache_hits_total",
-  help: "Total cache hits",
-  labelNames: ["cache_type", "operation"],
-  registers: [register],
-});
-
-export const cacheMissCounter = new client.Counter({
-  name: "user_cache_misses_total",
-  help: "Total cache misses",
-  labelNames: ["cache_type", "operation"],
-  registers: [register],
-});
-
-// Business metrics
-export const businessOperationCounter = new client.Counter({
-  name: "user_business_operations_total",
-  help: "Total business operations",
-  labelNames: ["operation_type", "user_type", "status"],
-  registers: [register],
-});
-
-export const businessOperationDuration = new client.Histogram({
-  name: "user_business_operation_duration_seconds",
-  help: "Business operation duration in seconds",
-  buckets: [0.1, 0.5, 1, 2, 5, 10, 30, 60],
-  labelNames: ["operation_type", "user_type"],
-  registers: [register],
-});
-
-// Queue/async operation metrics
-export const queueDepthGauge = new client.Gauge({
-  name: "user_service_queue_depth",
-  help: "Current queue depth",
-  labelNames: ["queue_name"],
-  registers: [register],
-});
-
-// Helper functions for error tracking
+// Helper: track an error
 export const trackError = (
   errorType: string,
   operation: string,
+  domain: string,
   severity: "low" | "medium" | "high" | "critical" = "medium"
 ) => {
-  errorCounter.inc({ error_type: errorType, operation, severity });
+  errorCounter.inc({ error_type: errorType, operation, domain, severity });
 };
 
-export const trackCacheHit = (cacheType: string, operation: string) => {
-  cacheHitCounter.inc({ cache_type: cacheType, operation });
-};
-
-export const trackCacheMiss = (cacheType: string, operation: string) => {
-  cacheMissCounter.inc({ cache_type: cacheType, operation });
-};
-
-/**
- * 
- * @description Bulk upload specific topic
- */
-
-export const bulkUploadTotal = new client.Counter({
-  name: "user_service_bulk_upload_total",
-  help: "Total bulk upload jobs",
-  labelNames: ["topic", "status", "employerTin"],
-  registers: [register],
-});
-
-export const bulkUploadRowsProcessed = new client.Counter({
-  name: "user_service_bulk_upload_rows_total",
-  help: "Total rows processed in bulk uploads",
-  labelNames: ["topic", "result"], 
-  registers: [register],
-});
-
-export const bulkUploadDuration = new client.Histogram({
-  name: "user_service_bulk_upload_duration_seconds",
-  help: "End-to-end duration of bulk upload jobs",
-  buckets: [30, 60, 120, 300, 600, 1200, 1800],
-  labelNames: ["topic", "status"],
-  registers: [register],
-});
-
-export const bulkUploadCurrent = new client.Gauge({
-  name: "user_service_bulk_upload_current",
-  help: "Currently running bulk upload jobs",
-  labelNames: ["topic", "employerTin"],
-  registers: [register],
-});
-
-// Enhanced database query measurement with error tracking
+// Helper: wrap a DB query with duration + error tracking
 export async function measureDatabaseQuery<T>(
   operation: string,
-  query: () => Promise<T>,
-  table: string = "users"
+  fn: () => Promise<T>,
+  domain: string
 ): Promise<T> {
-  const startTime = process.hrtime();
-  const labels = { operation, success: "true", table };
-
+  const end = databaseQueryDuration.startTimer({ operation, domain });
   try {
-    const result = await query();
-    const duration = process.hrtime(startTime);
-    const durationSeconds = duration[0] + duration[1] / 1e9;
-
-    databaseQueryTimeHistogram.observe(labels, durationSeconds);
-
-    // Track slow queries (> 1 second)
-    if (durationSeconds > 1) {
-      trackError("slow_query", operation, "medium");
-    }
-
-    // Track very slow queries (> 5 seconds)
-    if (durationSeconds > 5) {
-      trackError("very_slow_query", operation, "high");
-    }
-
+    const result = await fn();
+    end({ status: "success" });
     return result;
   } catch (error) {
-    const duration = process.hrtime(startTime);
-    const durationSeconds = duration[0] + duration[1] / 1e9;
-
-    labels.success = "false";
-    databaseQueryTimeHistogram.observe(labels, durationSeconds);
-
-    // Track database errors
+    end({ status: "error" });
+    databaseQueryErrors.inc({ operation, domain });
     if (error instanceof Error) {
       if (error.message.includes("timeout")) {
-        trackError("database_timeout", operation, "high");
+        trackError("db_timeout", operation, domain, "high");
       } else if (error.message.includes("connection")) {
-        trackError("database_connection", operation, "critical");
+        trackError("db_connection_error", operation, domain, "critical");
       } else {
-        trackError("database_query_error", operation, "medium");
+        trackError("db_query_error", operation, domain, "medium");
       }
     }
-
     throw error;
   }
 }
 
-export const serverHealthGauge = new client.Gauge({
-  name: "user_service_health_status",
-  help: "Overall service health status (1=healthy, 0=unhealthy)",
-});
-
-// Enhanced HTTP metrics with error classification
-export async function reqReplyTime(
+export function trackHttpRequest(
   req: Request,
   res: Response,
   startTime: [number, number]
 ) {
-  const duration = process.hrtime(startTime);
-  const durationSeconds = duration[0] + duration[1] / 1e9;
+  const [sec, ns] = process.hrtime(startTime);
+  const durationSeconds = sec + ns / 1e9;
   const success = res.statusCode < 400 ? "true" : "false";
+  const route = req.route?.path ?? req.url;
 
   const labels = {
     method: req.method,
-    route: req.route?.path || req.url,
+    route,
     status_code: res.statusCode.toString(),
     success,
   };
 
-  requestResponseTimeHistogram.observe(labels, durationSeconds);
+  requestDurationHistogram.observe(labels, durationSeconds);
   httpRequestCounter.inc(labels);
 
   if (res.statusCode >= 400) {
-    const errorType = res.statusCode >= 500 ? "server_error" : "client_error";
-    httpErrorsByRoute.inc({
+    httpErrorCounter.inc({
       method: req.method,
-      route: req.route?.path || req.url,
-      status_code: res.statusCode,
-      error_type: errorType,
+      route,
+      status_code: res.statusCode.toString(),
+      error_type: res.statusCode >= 500 ? "server_error" : "client_error",
     });
-  }
-  // Track slow requests
-  if (durationSeconds > 0.4) {
-    trackError("slow_request", `${req.method} ${req.route?.path}`, "medium");
-  }
-
-  // Track very slow requests
-  if (durationSeconds > 1) {
-    trackError("very_slow_request", `${req.method} ${req.route?.path}`, "high");
-  }
-
-  // Track HTTP errors
-  if (res.statusCode >= 400) {
-    const errorType = res.statusCode >= 500 ? "server_error" : "client_error";
-    const severity = res.statusCode >= 500 ? "high" : "low";
-    trackError(errorType, `${req.method} ${req.route?.path}`, severity);
   }
 }
 
-// Business operation tracker
-export async function measureBusinessOperation<T>(
-  operationType: string,
-  userType: string,
-  operation: () => Promise<T>
+export async function measurePipelinePhase<T>(
+  phase: string,
+  domain: string,
+  fn: () => Promise<T>
 ): Promise<T> {
-  const startTime = process.hrtime();
-
+  const end = pipelineDuration.startTimer({ phase, domain });
   try {
-    const result = await operation();
-    const duration = process.hrtime(startTime);
-    const durationSeconds = duration[0] + duration[1] / 1e9;
-
-    businessOperationCounter.inc({
-      operation_type: operationType,
-      user_type: userType,
-      status: "success",
-    });
-
-    businessOperationDuration.observe(
-      { operation_type: operationType, user_type: userType },
-      durationSeconds
-    );
-
+    const result = await fn();
+    end({ status: "success" });
     return result;
   } catch (error) {
-    businessOperationCounter.inc({
-      operation_type: operationType,
-      user_type: userType,
-      status: "error",
-    });
-
-    trackError("business_operation_error", operationType, "medium");
+    end({ status: "error" });
+    pipelineErrors.inc({ phase, domain });
     throw error;
   }
 }
-export const updateDatabaseMetrics = (connectionStats: {
-  active: number;
-  idle: number;
-  pending: number;
-}) => {
-  databaseConnectionsGauge.set(connectionStats.active);
-  databaseConnectionPoolGauge.set({ state: "active" }, connectionStats.active);
-  databaseConnectionPoolGauge.set({ state: "idle" }, connectionStats.idle);
-  databaseConnectionPoolGauge.set(
-    { state: "pending" },
-    connectionStats.pending
-  );
-};
 
-
-export const userRegistry = register;
+export const brimbleRegistry = register;

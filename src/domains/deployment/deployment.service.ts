@@ -1,4 +1,3 @@
-import { Types } from "mongoose";
 import { deploymentRepository } from "./deployment.repository";
 import { deploymentLogRepository } from "../deployment-log/deployment-log.repository";
 import { deploymentEventBus } from "./events/bus";
@@ -11,6 +10,7 @@ import {
 import { NotFoundError } from "../../shared/utils/error";
 import { createLogger } from "../../shared/utils/logger";
 import { SERVICE_NAME } from "../../shared/constants";
+import { trackError } from "../../shared/utils/metrics";
 import type {
   IDeployment,
   DeploymentSource,
@@ -21,9 +21,21 @@ import type {
   DeploymentStatusData,
 } from "../../shared/types";
 import type { Request, Response } from "express";
+import {
+  deploymentCreatedCounter,
+  deploymentNotFoundCounter,
+  deploymentPublishErrorCounter,
+} from "../../shared/utils/deploymentMetrics";
+import {
+  sseActiveConnections,
+  sseConnectionDuration,
+  sseReplaySize,
+} from "../../shared/utils/sseMetrics";
 
 const logger = createLogger(SERVICE_NAME);
+const DOMAIN = "deployment";
 
+//  Service
 class DeploymentService {
   async createDeployment(
     sourceType: DeploymentSource,
@@ -39,17 +51,33 @@ class DeploymentService {
 
     const deploymentId = deployment.id.toString();
 
-    await publishDeploymentRequested({
-      deploymentId,
-      sourceType,
-      sourceRef,
-      attempt: 0,
-      requestId,
-    });
+    try {
+      await publishDeploymentRequested({
+        deploymentId,
+        sourceType,
+        sourceRef,
+        attempt: 0,
+        requestId,
+      });
+    } catch (err) {
+      deploymentPublishErrorCounter.inc();
+      trackError("publish_failed", "deployment_create", DOMAIN, "critical");
+      logger.error("deployment_service_publish_failed", {
+        event: "deployment_service_publish_failed",
+        service: SERVICE_NAME,
+        domain: DOMAIN,
+        deploymentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+
+    deploymentCreatedCounter.inc({ source_type: sourceType });
 
     logger.info("deployment_service_created", {
       event: "deployment_service_created",
       service: SERVICE_NAME,
+      domain: DOMAIN,
       deploymentId,
       sourceType,
       requestId,
@@ -66,6 +94,7 @@ class DeploymentService {
     const deployment = await deploymentRepository.findById(id);
 
     if (!deployment) {
+      deploymentNotFoundCounter.inc();
       throw new NotFoundError("Deployment", id.toString());
     }
 
@@ -79,9 +108,23 @@ class DeploymentService {
   ): Promise<void> {
     initSSEResponse(res);
 
+    sseActiveConnections.inc();
+    const sseStart = process.hrtime();
+
+    const endSSE = (exitReason: "terminal_status" | "client_disconnect") => {
+      sseActiveConnections.dec();
+      const [sec, ns] = process.hrtime(sseStart);
+      sseConnectionDuration.observe(
+        { exit_reason: exitReason },
+        sec + ns / 1e9,
+      );
+    };
+
     // Replay persisted logs
     const existingLogs =
       await deploymentLogRepository.findByDeploymentId(deploymentId);
+
+    sseReplaySize.observe(existingLogs.length);
 
     for (const log of existingLogs) {
       writeSEEEvent(res, {
@@ -96,7 +139,6 @@ class DeploymentService {
       });
     }
 
-    // If already terminal, close immediately
     const deployment = await deploymentRepository.findById(deploymentId);
     if (
       deployment &&
@@ -109,6 +151,7 @@ class DeploymentService {
           status: deployment.status,
         } satisfies DeploymentDoneData,
       });
+      endSSE("terminal_status");
       res.end();
       return;
     }
@@ -129,6 +172,7 @@ class DeploymentService {
         });
       },
     );
+
     // Subscribe to status events
     const unsubStatus = deploymentEventBus.onStatus(
       deploymentId,
@@ -150,6 +194,7 @@ class DeploymentService {
               status: event.status,
             } satisfies DeploymentDoneData,
           });
+          endSSE("terminal_status");
           cleanup();
         }
       },
@@ -169,7 +214,10 @@ class DeploymentService {
       if (!res.writableEnded) res.end();
     };
 
-    req.on("close", cleanup);
+    req.on("close", () => {
+      endSSE("client_disconnect");
+      cleanup();
+    });
   }
 }
 

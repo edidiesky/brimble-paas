@@ -9,28 +9,32 @@ import {
   getDeadLetterHandler,
   resolveDeadLetterHandler,
 } from "./dead-letter.controller";
+import { validateRequest } from "../../infra/middleware/validate.middleware";
+import {
+  listDeadLettersSchema,
+  resolveDeadLetterSchema,
+} from "./dead-letter.validator";
 
 const router = Router();
 
-// GET /api/dead-letters
 router.get(
   "/",
+  validateRequest({ query: listDeadLettersSchema }),
   (req: Request, res: Response, next: NextFunction) =>
-    void listDeadLettersHandler(req, res, next),
+    void listDeadLettersHandler(req, res, next)
 );
 
-// GET /api/dead-letters/:jobId
 router.get(
   "/:jobId",
   (req: Request, res: Response, next: NextFunction) =>
-    void getDeadLetterHandler(req, res, next),
+    void getDeadLetterHandler(req, res, next)
 );
 
-// PATCH /api/dead-letters/:jobId/resolve
 router.patch(
   "/:jobId/resolve",
+  validateRequest({ body: resolveDeadLetterSchema }),
   (req: Request, res: Response, next: NextFunction) =>
-    void resolveDeadLetterHandler(req, res, next),
+    void resolveDeadLetterHandler(req, res, next)
 );
 
 export default router;
