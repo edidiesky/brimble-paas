@@ -8,6 +8,7 @@ import {
 import { CacheKeys, CacheTTL, InvalidationPatterns } from "../../infra/cache/cache.keys";
 import type { IDeploymentLog, LogPhase } from "../../shared/types";
 import type { PoolClient } from "pg";
+import { publishLog, publishManyLogs } from "../../infra/pubsub/log.publisher";
 
 const DOMAIN = "deployment-log";
 
@@ -23,28 +24,37 @@ function rowToLog(row: Record<string, unknown>): IDeploymentLog {
 }
 
 class DeploymentLogRepository {
+
   async insert(log: Omit<IDeploymentLog, "id">, client?: PoolClient): Promise<void> {
     const db = client ?? getPool();
 
-    await measureDatabaseQuery(
+    const { rows } = await measureDatabaseQuery(
       "deployment_log_insert",
       () =>
         db.query(
           `INSERT INTO deployment_logs (id, deployment_id, seq, ts, line, phase)
            VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
-           ON CONFLICT (deployment_id, seq) DO NOTHING`,
+           ON CONFLICT (deployment_id, seq) DO NOTHING
+           RETURNING *`,
           [log.deploymentId, log.seq, log.ts, log.line, log.phase],
         ),
       DOMAIN,
     );
 
-    await cacheDelByPattern(
-      InvalidationPatterns.deploymentLogs(log.deploymentId),
-      DOMAIN,
-      "log_inserted",
-    );
+    if (rows.length > 0) {
+      const persisted = rowToLog(rows[0]);
+      await Promise.all([
+        publishLog(persisted),
+        cacheDelByPattern(
+          InvalidationPatterns.deploymentLogs(log.deploymentId),
+          DOMAIN,
+          "log_inserted",
+        ),
+      ]);
+    }
   }
 
+ 
   async insertMany(
     logs: Omit<IDeploymentLog, "id">[],
     client?: PoolClient,
@@ -52,7 +62,7 @@ class DeploymentLogRepository {
     if (logs.length === 0) return;
     const db = client ?? getPool();
 
-    await measureDatabaseQuery(
+    const { rows } = await measureDatabaseQuery(
       "deployment_log_insert_many",
       () =>
         db.query(
@@ -64,7 +74,8 @@ class DeploymentLogRepository {
              $4::text[],
              $5::text[]
            )
-           ON CONFLICT (deployment_id, seq) DO NOTHING`,
+           ON CONFLICT (deployment_id, seq) DO NOTHING
+           RETURNING *`,
           [
             logs.map((l) => l.deploymentId),
             logs.map((l) => l.seq),
@@ -76,11 +87,18 @@ class DeploymentLogRepository {
       DOMAIN,
     );
 
-    await cacheDelByPattern(
-      InvalidationPatterns.deploymentLogs(logs[0].deploymentId),
-      DOMAIN,
-      "logs_bulk_inserted",
-    );
+    const persisted = rows.map(rowToLog);
+
+    if (persisted.length > 0) {
+      await Promise.all([
+        publishManyLogs(persisted),
+        cacheDelByPattern(
+          InvalidationPatterns.deploymentLogs(logs[0].deploymentId),
+          DOMAIN,
+          "logs_bulk_inserted",
+        ),
+      ]);
+    }
   }
 
   async findByDeploymentId(

@@ -163,13 +163,35 @@ services:
       - brimble-network
     volumes:
       - buildkit_data:/var/lib/buildkit
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: brimble_socket_proxy
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      VOLUMES: 0
+      EXEC: 0
+      POST: 1
+      BUILD: 0   
+      SWARM: 0
+      SYSTEM: 0
+      INFO: 1
+      AUTH: 0
+      SECRETS: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket-proxy-network
+    restart: unless-stopped
+    privileged: true
+
 
   api:
     build:
       context: ..
       dockerfile: Dockerfile
     container_name: brimble_api
-    user: root 
     ports:
       - "3000:3000"
       - "9464:9464"
@@ -180,6 +202,7 @@ services:
       - workspaces_data:/app/workspaces
     networks:
       - brimble-network
+      - socket-proxy-network
     depends_on:
       postgres:
         condition: service_healthy

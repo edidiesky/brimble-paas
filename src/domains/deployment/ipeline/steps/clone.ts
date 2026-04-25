@@ -20,7 +20,7 @@ export async function cloneStep(
 
   try {
     if (sourceType === "git") {
-      log(`Cloning repository: ${sourceRef}`, "clone");
+      log(`Cloning your git repository: ${sourceRef}`, "clone");
 
       await new Promise<void>((resolve, reject) => {
         const proc = spawn("git", ["clone", "--depth=1", sourceRef, workDir], {
@@ -49,7 +49,7 @@ export async function cloneStep(
         );
       });
 
-      log("Clone complete", "clone");
+      log("Cloning step has been completed", "clone");
     } else {
       log(`Using uploaded source at ${sourceRef}`, "clone");
     }

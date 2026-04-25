@@ -11,12 +11,9 @@ export function createLogWriter(deploymentId: string): LogWriter {
     const currentSeq = seq++;
     const ts = new Date();
 
-    // Persist async, do not block the pipeline
     deploymentLogRepository
       .insert({ deploymentId, seq: currentSeq, ts, line, phase })
       .catch(() => {});
-
-    // Fanning out to SSE subscribers
     deploymentEventBus.emitLog({
       deploymentId,
       seq: currentSeq,

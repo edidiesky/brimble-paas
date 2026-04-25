@@ -30,3 +30,6 @@ export async function runStep(
     throw new PipelineError(message, deploymentId, "run");
   }
 }
+
+// push code to runner > run > clone > build > output imagetag > run the image tage with the deployment id > register 
+// provide and getva  port within 30k to 30200 (port, and containerid) >  

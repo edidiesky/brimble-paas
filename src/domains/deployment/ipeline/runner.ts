@@ -22,7 +22,7 @@ export class PipelineRunner {
       // building
       await deploymentRepository.updateStatus(deploymentId, "building");
       deploymentEventBus.emitStatus(deploymentId, "building");
-      log("Pipeline started", "system");
+      log("Pipeline just started right now", "system");
 
       // clone
       const workDir = await measurePipelinePhase("clone", deploymentId, () =>
@@ -57,7 +57,7 @@ export class PipelineRunner {
       });
       deploymentEventBus.emitStatus(deploymentId, "running");
 
-      log(`Deployment live at ${url}`, "system");
+      log(`Your Deployment is running live right now at ${url}`, "system");
 
       logger.info("pipeline_runner_completed", {
         event: "pipeline_runner_completed",

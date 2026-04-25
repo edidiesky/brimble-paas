@@ -39,19 +39,19 @@ class DockerService {
     const end = containerStartDuration.startTimer();
     try {
       const container = await docker.createContainer({
-  Image: imageTag,
-  name: `brimble-${deploymentId}`,
-  
-  Env: [`PORT=80`],
-  ExposedPorts: { "80/tcp": {} },
-  HostConfig: {
-    PortBindings: {
-      "80/tcp": [{ HostPort: String(hostPort) }],
-    },
-    RestartPolicy: { Name: "unless-stopped" },
-    NetworkMode: "brimble_brimble-network",
-  },
-});
+        Image: imageTag,
+        name: `brimble-${deploymentId}`,
+
+        Env: [`PORT=80`],
+        ExposedPorts: { "80/tcp": {} },
+        HostConfig: {
+          PortBindings: {
+            "80/tcp": [{ HostPort: String(hostPort) }],
+          },
+          RestartPolicy: { Name: "unless-stopped" },
+          NetworkMode: "brimble_brimble-network",
+        },
+      });
       await container.start();
 
       logger.info("docker_service_container_started", {
