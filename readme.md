@@ -216,14 +216,15 @@ cd brimble-paas
 ### 2. Configure environment variables
 
 ```bash
-cp .env.sample brimble-deploy/.env
+cp brimble-deploy/.env.sample brimble-deploy/.env
 ```
 
 The `.env.sample` contains sensible defaults for every variable. The only values you must change before starting are the RabbitMQ credentials — the defaults will work but you should generate a proper password hash for `definitions.json`.
 
 ### 3. Generate RabbitMQ password hash
 
-RabbitMQ requires a hashed password in its definitions file, not a plaintext one. Generate the hash for whatever password you set as `RABBITMQ_PASS` in your `.env`:
+RabbitMQ requires a hashed password in its definitions file, not a plaintext one. Generate the hash for whatever password you set as `RABBITMQ_PASS` in your `.env`
+Please kindly use bash for the below command
 
 ```bash
 docker run --rm rabbitmq:3.13-management-alpine \
