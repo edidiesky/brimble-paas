@@ -2,8 +2,6 @@
 
 A self-hosted PaaS pipeline that accepts a Git URL or a project upload, builds a container image with Railpack, runs it with Docker, and routes traffic through Caddy. Built as part of the Brimble engineering take-home task.
 
-Frontend UI lives at [edidiesky/brimble-ui](https://github.com/edidiesky/brimble-ui).
-
 ---
 
 ## What I built
@@ -139,7 +137,7 @@ event: done     > { status: "running" | "failed" }
 
 ```
 brimble-paas/
-├── apps/
+├── app/
 │   ├── api/                          # Backend API
 │   │   ├── src/
 │   │   │   ├── domains/
@@ -290,6 +288,7 @@ docker compose -f docker-compose.dev.yml down -v
 No Docker required. Uses full mocks for all infrastructure.
 
 ```bash
+cd app/api
 npm run test:unit
 ```
 
@@ -298,19 +297,12 @@ npm run test:unit
 Requires Docker running. Testcontainers starts a real PostgreSQL 16 container, applies migrations, runs all tests, and tears down the container automatically.
 
 ```bash
+cd app/api
 npm install --save-dev @testcontainers/postgresql testcontainers @types/pg
 npm run test:integration
 ```
 
 First run is slow (~15s) while Docker pulls the PostgreSQL image. Subsequent runs use the cached image (~6s).
-
-### Load tests
-
-Requires k6 installed and the API running locally.
-
-```bash
-k6 run src/__tests__/load/deployment.load.ts
-```
 
 ---
 
@@ -322,7 +314,7 @@ I followed a 70/20/10 distribution:
 
 **Integration tests (20%)** run against a real PostgreSQL container via testcontainers. No mocking of the database layer. The tests assert the full HTTP request/response cycle plus DB state: a `POST /deployments` creates a row with `status = pending` regardless of what the caller sends, a `PATCH /dead-letters/:jobId/resolve` sets `resolved_by = system` in the actual row. RabbitMQ, Redis, and metrics are mocked at the module level to keep the tests focused on HTTP and DB correctness.
 
-**Load tests (10%)** use k6 with a ramping VU scenario: 60% deployment creates, 25% log reads, 15% dead-letter list reads. Thresholds: p95 create latency under 1000ms, p95 read latency under 500ms, error rate under 1%.
+**Load tests (10%)** use k6 with a ramping VU scenario: 60% deployment creates, 25% log reads, 15% dead-letter list reads. Thresholds: p95 create latency under 1000ms, p95 read latency under 500ms, error rate under 1%. I did left it out since thhere was no time to comlete it.
 
 ---
 
