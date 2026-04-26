@@ -107,12 +107,38 @@ This is a known security trade-off for development: a container with root access
 | `GET` | `/api/v1/deployments/:id` | Get deployment by ID |
 | `GET` | `/api/v1/deployments/:id/logs` | SSE stream of live logs and status |
 
+**POST /api/v1/deployments**
+
+It accepts `multipart/form-data` (for file uploads) or `application/json` (for git).
+
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `sourceType` | `string` | Yes | Must be `git` or `upload` |
+| `sourceRef` | `string` | Required when `sourceType=git` | Must be a valid URL |
+| `name` | `string` | No | Max 100 characters |
+| `file` | `file` | Required when `sourceType=upload` | zip, tar, gzip — max 100MB |
+
 ### Deployment logs
 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/v1/deployment-logs` | Paginated logs for a deployment |
 | `GET` | `/api/v1/deployment-logs/count` | Total log count for a deployment |
+
+**GET /api/v1/deployment-logs**
+
+| Query param | Type | Required | Validation |
+|-------------|------|----------|------------|
+| `deploymentId` | `string` | Yes | Must be a valid UUID |
+| `phase` | `string` | No | One of: `clone`, `build`, `run`, `register`, `system` |
+| `page` | `number` | No | Integer ≥ 1, default `1` |
+| `limit` | `number` | No | Integer 1–100, default `50` |
+
+**GET /api/v1/deployment-logs/count**
+
+| Query param | Type | Required | Validation |
+|-------------|------|----------|------------|
+| `deploymentId` | `string` | Yes | Must be a valid UUID |
 
 ### Dead letters
 
@@ -125,12 +151,11 @@ This is a known security trade-off for development: a container with root access
 ### SSE event types
 
 ```
-event: log      > { deploymentId, seq, ts, line, phase }
-event: status   > { deploymentId, status }
-event: done     > { status: "running" | "failed" }
-: heartbeat     > sent every 15s to keep the connection alive through proxies
+event: log      → { deploymentId, seq, ts, line, phase }
+event: status   → { deploymentId, status }
+event: done     → { status: "running" | "failed" }
+: heartbeat     → sent every 15s to keep the connection alive through proxies
 ```
-
 ---
 
 ## Project structure

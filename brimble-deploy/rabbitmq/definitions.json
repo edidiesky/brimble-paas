@@ -1,7 +1,7 @@
 {
   "users": [
     {
-      "name": "brimble_user",
+      "name": "brimble",
       "password_hash": "Jdw4C0DmOibqzS6NOz16MBJR5n13kNa2XtWmT19PDvY57ktd",
       "hashing_algorithm": "rabbit_password_hashing_sha256",
       "tags": "administrator"
@@ -10,7 +10,7 @@
   "vhosts": [{ "name": "brimble" }],
   "permissions": [
     {
-      "user": "brimble_user",
+      "user": "brimble",
       "vhost": "brimble",
       "configure": ".*",
       "write": ".*",
