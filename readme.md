@@ -158,39 +158,62 @@ event: done     > { status: "running" | "failed" }
 
 ```
 brimble-paas/
-├── src/
-│   ├── domains/
-│   │   ├── deployment/          # deployment entity, pipeline runner, service, repository
-│   │   │   ├── pipeline/        # PipelineRunner + phase implementations
-│   │   │   └── events/          # deploymentEventBus (legacy in-process, superseded by pub/sub)
-│   │   ├── deployment-log/      # log persistence, SSE controller, paginated reads
-│   │   ├── dead-letter/         # dead letter creation, resolution, outbox integration
-│   │   └── outbox/              # transactional outbox repository and poller
-│   ├── infra/
-│   │   ├── cache/               # Redis cache client with Prometheus instrumentation
-│   │   ├── config/              # Redis and PostgreSQL connection management
-│   │   ├── db/                  # pg Pool singleton with pool event instrumentation
-│   │   ├── messaging/           # RabbitMQ connection, producer, consumers, topology
-│   │   ├── migrations/          # SQL migration files
-│   │   ├── middleware/           # request ID, validation, error handler, upload
-│   │   ├── pubsub/              # Redis pub/sub publisher and subscriber
-│   │   └── sse/                 # SSE response helpers
-│   └── shared/
-│       ├── utils/               # metrics, logger, error types, outbox poller
-│       ├── constants.ts
-│       └── types.ts
-├── brimble-deploy/              # Docker Compose stack and observability config
-│   ├── grafana/                 # dashboard provisioning and JSON dashboards
-│   ├── loki/                    # Loki config
-│   ├── prometheus/              # Prometheus scrape config
-│   ├── promtail/                # Promtail config for Docker log collection
-│   ├── rabbitmq/                # RabbitMQ definitions, plugins, config
+├── apps/
+│   ├── api/                          # Backend API
+│   │   ├── src/
+│   │   │   ├── domains/
+│   │   │   │   ├── deployment/       # deployment entity, pipeline runner, service, repository
+│   │   │   │   │   ├── pipeline/     # PipelineRunner + phase implementations (clone, build, run, register)
+│   │   │   │   │   └── events/       # deploymentEventBus (legacy in-process, superseded by pub/sub)
+│   │   │   │   ├── deployment-log/   # log persistence, SSE controller, paginated reads
+│   │   │   │   ├── dead-letter/      # dead letter creation, resolution, outbox integration
+│   │   │   │   └── outbox/           # transactional outbox repository and poller
+│   │   │   ├── infra/
+│   │   │   │   ├── cache/            # Redis cache client with Prometheus instrumentation
+│   │   │   │   ├── config/           # Redis and PostgreSQL connection management
+│   │   │   │   ├── db/               # pg Pool singleton with pool event instrumentation
+│   │   │   │   ├── messaging/        # RabbitMQ connection, producer, consumers, topology
+│   │   │   │   ├── migrations/       # SQL migration files
+│   │   │   │   ├── middleware/       # request ID, validation, error handler, upload
+│   │   │   │   ├── pubsub/           # Redis pub/sub publisher and subscriber
+│   │   │   │   └── sse/              # SSE response helpers
+│   │   │   └── shared/
+│   │   │       ├── utils/            # metrics, logger, error types, outbox poller
+│   │   │       ├── constants.ts
+│   │   │       └── types.ts
+│   │   ├── src/__tests__/
+│   │   │   ├── unit/                 # repository and service unit tests
+│   │   │   ├── integration/          # route integration tests against real PostgreSQL
+│   │   │   └── load/                 # k6 load test scenarios
+│   │   ├── Dockerfile
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
+│   └── ui/                           # Frontend - Vite + TanStack
+│       ├── src/
+│       │   ├── routes/               # TanStack Router file-based routes
+│       │   │   └── index.tsx         # single dashboard page
+│       │   ├── components/
+│       │   │   ├── layout/           # AppShell, sidebar, header
+│       │   │   └── ui/               # shadcn/ui primitives
+│       │   ├── hooks/                # TanStack Query hooks for deployments and logs
+│       │   ├── lib/
+│       │   │   └── api.ts            # API client - base URL is /api/v1 (same origin via Caddy)
+│       │   └── types/
+│       ├── Dockerfile
+│       ├── package.json
+│       └── vite.config.ts
+│
+├── brimble-deploy/                   # Docker Compose stack and observability config
+│   ├── grafana/                      # dashboard provisioning and JSON dashboards
+│   ├── loki/                         # Loki config
+│   ├── prometheus/                   # Prometheus scrape config
+│   ├── promtail/                     # Promtail config for Docker log collection
+│   ├── rabbitmq/                     # RabbitMQ definitions, plugins, config
 │   ├── Caddyfile
 │   └── docker-compose.dev.yml
-└── src/__tests__/
-    ├── unit/                    # repository and service unit tests
-    ├── integration/             # route integration tests against real PostgreSQL
-    └── load/                    # k6 load test scenarios
+├── .env.sample
+└── README.md
 ```
 
 ---
@@ -199,7 +222,7 @@ brimble-paas/
 
 - Docker Desktop (or Docker Engine + Docker Compose v2)
 - The Docker daemon must be running before `docker compose up`
-- No other services needed - everything else runs inside the compose network
+- No other services needed — everything else runs inside the compose network
 
 ---
 
@@ -215,21 +238,21 @@ cd brimble-paas
 ### 2. Configure environment variables
 
 ```bash
-cp .env.sample .env
+cp .env.sample brimble-deploy/.env
 ```
 
-Open `.env` and fill in the required values. Sensible defaults are provided for local development. The only values you must set yourself are the RabbitMQ credentials.
+The `.env.sample` contains sensible defaults for every variable. The only values you must change before starting are the RabbitMQ credentials — the defaults will work but you should generate a proper password hash for `definitions.json`.
 
 ### 3. Generate RabbitMQ password hash
 
-RabbitMQ requires hashed passwords in its definitions file. Generate a hash for your chosen password:
+RabbitMQ requires a hashed password in its definitions file, not a plaintext one. Generate the hash for whatever password you set as `RABBITMQ_PASS` in your `.env`:
 
 ```bash
 docker run --rm rabbitmq:3.13-management-alpine \
-  rabbitmqctl hash_password <YOUR_PASSWORD>
+  rabbitmqctl hash_password YOUR_RABBITMQ_PASS
 ```
 
-Paste the output into `brimble-deploy/rabbitmq/definitions.json` under the `users` array, and set the matching plaintext password in your `.env` as `RABBITMQ_PASS`.
+Open `brimble-deploy/rabbitmq/definitions.json`, find the `users` array, and replace the `password_hash` value with the output of that command. The plaintext password in `.env` and the hash in `definitions.json` must correspond.
 
 ### 4. Start the stack
 
@@ -238,19 +261,47 @@ cd brimble-deploy
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-The first run pulls images and builds the API container. Subsequent runs are faster.
+On first run Docker pulls all images and builds the API and UI containers. This takes 3–5 minutes depending on your connection. The UI is built at compose time — Caddy serves the static output directly. Subsequent runs are fast since layers are cached.
 
-### 5. Verify services
+### 5. Verify everything is running
 
-| Service | URL |
-|---------|-----|
-| API | http://localhost:3000/health |
-| Metrics | http://localhost:9464/metrics |
-| RabbitMQ management | http://localhost:15672 |
-| Grafana | http://localhost:3001 |
-| Prometheus | http://localhost:9090 |
+| Service | URL | Notes |
+|---------|-----|-------|
+| UI | http://localhost | Main dashboard |
+| API health | http://localhost/api/v1/health | Should return `{ status: "ok" }` |
+| API direct | http://localhost:3000/health | Direct port access |
+| Metrics | http://localhost:9464/metrics | Prometheus scrape endpoint |
+| RabbitMQ | http://localhost:15672 | Management UI — credentials from `.env` |
+| Grafana | http://localhost:3001 | Dashboards — credentials from `.env` |
+| Prometheus | http://localhost:9090 | Query UI |
 
----
+### 6. Submit a test deployment
+
+Once the stack is healthy, submit a deployment from the UI or via curl:
+
+```bash
+curl -X POST http://localhost/api/v1/deployments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceType": "git",
+    "sourceRef": "https://github.com/edidiesky/brimble-ui",
+    "name": "my-app"
+  }'
+```
+
+The UI will show the deployment appearing with status `pending`, transitioning through `building` and `deploying`, and reaching `running` with a live URL once Caddy registers the route. Build logs stream to the UI in real time as each pipeline phase executes.
+
+### Stopping the stack
+
+```bash
+docker compose -f docker-compose.dev.yml down
+```
+
+To also remove volumes (wipes all data including PostgreSQL and Redis):
+
+```bash
+docker compose -f docker-compose.dev.yml down -v
+```
 
 ## Running tests
 

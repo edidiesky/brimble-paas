@@ -25,6 +25,7 @@ volumes:
   buildkit_data:
   buildkit_sock:
   loki_data:
+  ui_dist:
 
 services:
   postgres:
@@ -124,6 +125,17 @@ services:
       start_period: 40s
     restart: unless-stopped
 
+  ui:
+    build:
+      context: ../apps/ui
+      dockerfile: Dockerfile
+    container_name: brimble_ui_dev
+    volumes:
+      - ui_dist:/ui
+    networks:
+      - brimble-frontend-network
+    restart: "no"
+
   caddy:
     image: caddy:2-alpine
     container_name: brimble_caddy_dev
@@ -132,10 +144,16 @@ services:
       - "2019:2019"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ui_dist:/srv/ui:ro
     networks:
       - brimble-frontend-network
       - brimble-api-network
     restart: unless-stopped
+    depends_on:
+      ui:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost/caddy/health"]
       interval: 10s
@@ -186,7 +204,7 @@ services:
 
   api:
     build:
-      context: ..
+      context: ../apps/api
       dockerfile: Dockerfile
     container_name: brimble_api_dev
     user: root
@@ -200,7 +218,7 @@ services:
       NODE_ENV: development
       DOCKER_HOST: tcp://socket-proxy:2375
     volumes:
-      - ../src:/app/src
+      - ../apps/api/src:/app/src
       - workspaces_data:/app/workspaces
       - buildkit_sock:/run/buildkit
     networks:
