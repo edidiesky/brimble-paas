@@ -184,7 +184,6 @@ brimble-paas/
 │   │   ├── src/__tests__/
 │   │   │   ├── unit/                 # repository and service unit tests
 │   │   │   ├── integration/          # route integration tests against real PostgreSQL
-│   │   │   └── load/                 # k6 load test scenarios
 │   │   ├── Dockerfile
 │   │   ├── package.json
 │   │   └── tsconfig.json
@@ -258,7 +257,7 @@ Open `brimble-deploy/rabbitmq/definitions.json`, find the `users` array, and rep
 
 ```bash
 cd brimble-deploy
-docker compose -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
 On first run Docker pulls all images and builds the API and UI containers. This takes 3–5 minutes depending on your connection. The UI is built at compose time — Caddy serves the static output directly. Subsequent runs are fast since layers are cached.

@@ -7,7 +7,7 @@ RUN addgroup -g 1001 brimble-paas && \
 
 COPY package.json package-lock.json ./
 
-RUN apk add --no-cache curl && npm ci
+RUN npm ci
 
 COPY src ./src
 COPY tsconfig.json ./

@@ -30,9 +30,6 @@ Thumbs.db
 # TypeScript build
 **/tsconfig.tsbuildinfo
 
-# Docker
-**/.dockerignore
-
 # Keep these
 !package.json
 !package-lock.json

@@ -127,11 +127,11 @@ services:
 
   ui:
     build:
-      context: ../apps/ui
+      context: ../app/ui
       dockerfile: Dockerfile
     container_name: brimble_ui_dev
     volumes:
-      - ui_dist:/ui
+      - ui_dist:/srv/ui 
     networks:
       - brimble-frontend-network
     restart: "no"
@@ -204,7 +204,7 @@ services:
 
   api:
     build:
-      context: ../apps/api
+      context: ../app/api
       dockerfile: Dockerfile
     container_name: brimble_api_dev
     user: root
@@ -218,7 +218,7 @@ services:
       NODE_ENV: development
       DOCKER_HOST: tcp://socket-proxy:2375
     volumes:
-      - ../apps/api/src:/app/src
+      - ../app/api/src:/app/src
       - workspaces_data:/app/workspaces
       - buildkit_sock:/run/buildkit
     networks:
@@ -234,8 +234,6 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      caddy:
         condition: service_healthy
       socket-proxy:
         condition: service_started
