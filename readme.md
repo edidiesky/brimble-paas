@@ -38,26 +38,7 @@ A miniature deployment platform that illustrate a little what Brimble does in pr
 ---
 
 ## Architecture
-
-```
-                        ┌─────────────────────────────────────────────┐
-                        │              Docker network                  │
-                        │                                              │
-  Browser ─────────────▶│  Caddy :80  ──────────────────────────────▶ Deployed containers
-                        │     │                                        │
-                        │     ▼                                        │
-                        │  API :3000                                   │
-                        │     │                                        │
-                        │     ├──▶ PostgreSQL :5432                    │
-                        │     ├──▶ Redis :6379                        │
-                        │     ├──▶ RabbitMQ :5672                     │
-                        │     └──▶ BuildKit :1234                     │
-                        │                                              │
-                        │  Prometheus ◀── API :9464 (metrics)         │
-                        │  Grafana ◀── Prometheus + Loki               │
-                        │  Promtail ◀── Docker container logs          │
-                        └─────────────────────────────────────────────┘
-```
+![Architecture Diagram](image.png)
 
 ### Pipeline flow
 

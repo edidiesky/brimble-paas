@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Rocket } from "lucide-react";
+import { Search, PaintBucket } from "lucide-react";
 import { DeploymentRow } from "./DeploymentRow";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -122,7 +122,7 @@ export function DeploymentList() {
           {!isLoading && !isError && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-24 text-center">
               <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-3">
-                <Rocket className="h-5 w-5 text-muted-foreground" />
+                <PaintBucket className="h-5 w-5 text-muted-foreground" />
               </div>
               <p className="text-lg font-medium text-foreground">
                 {search || statusFilter !== "all"
@@ -135,7 +135,7 @@ export function DeploymentList() {
                   : "Deploy your first project to get started"}
               </p>
               {statusFilter === "all" && !search && (
-                <Button size="sm" onClick={() => setDeployFormOpen(true)}>
+                <Button size="lg" onClick={() => setDeployFormOpen(true)}>
                   New Deployment
                 </Button>
               )}
