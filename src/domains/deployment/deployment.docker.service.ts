@@ -1,17 +1,21 @@
-import Dockerode from "dockerode";
 import { deploymentRepository } from "./deployment.repository";
-import { PORT_RANGE } from "../../shared/constants";
+import { PORT_RANGE, SERVICE_NAME } from "../../shared/constants";
 import { DockerError } from "../../shared/utils/error";
 import { createLogger } from "../../shared/utils/logger";
-import { SERVICE_NAME } from "../../shared/constants";
 import {
   containerStartDuration,
   containerStopTotal,
 } from "../../shared/utils/dockerContainerMetrics";
 import { trackError } from "../../shared/utils/metrics";
+import { docker } from "../../infra/docker/client";
 
 const logger = createLogger(SERVICE_NAME);
-const docker = new Dockerode({ socketPath: "/var/run/docker.sock" });
+
+const DEPLOYMENT_NETWORK = process.env.DEPLOYMENT_NETWORK;
+
+if (!DEPLOYMENT_NETWORK) {
+  throw new Error("DEPLOYMENT_NETWORK env var is required");
+}
 
 interface RunContainerOptions {
   deploymentId: string;
@@ -37,11 +41,11 @@ class DockerService {
   async runContainer(options: RunContainerOptions): Promise<string> {
     const { deploymentId, imageTag, hostPort } = options;
     const end = containerStartDuration.startTimer();
+
     try {
       const container = await docker.createContainer({
         Image: imageTag,
         name: `brimble-${deploymentId}`,
-
         Env: [`PORT=80`],
         ExposedPorts: { "80/tcp": {} },
         HostConfig: {
@@ -49,9 +53,10 @@ class DockerService {
             "80/tcp": [{ HostPort: String(hostPort) }],
           },
           RestartPolicy: { Name: "unless-stopped" },
-          NetworkMode: "brimble_brimble-network",
+          NetworkMode: DEPLOYMENT_NETWORK,
         },
       });
+
       await container.start();
 
       logger.info("docker_service_container_started", {
@@ -61,6 +66,7 @@ class DockerService {
         containerId: container.id.slice(0, 12),
         hostPort,
       });
+
       end({ status: "success" });
       return container.id;
     } catch (err) {

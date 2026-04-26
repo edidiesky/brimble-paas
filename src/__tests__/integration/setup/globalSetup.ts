@@ -14,9 +14,11 @@ async function applyMigrations(connectionString: string): Promise<void> {
         applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+
     const files = readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith(".sql"))
       .sort();
+
     for (const file of files) {
       const sql = readFileSync(path.join(MIGRATIONS_DIR, file), "utf-8");
       const client = await pool.connect();
@@ -56,14 +58,10 @@ export default async function globalSetup(): Promise<void> {
   process.env.TEST_DATABASE_URL = connectionString;
 
   console.log(`[globalSetup] container started: ${connectionString}`);
+
   await applyMigrations(connectionString);
+
   console.log("[globalSetup] migrations applied");
 
-  // Create ONE pool here and store on global.__PG_POOL__.
-  // globalSetup runs in a separate context from test workers but process.env
-  // is shared. The pool object itself cannot cross the worker boundary via global
-  // in Jest's architecture, so we store the connection string and let each
-  // worker's beforeAll create their own pool - but we use module isolation
-  // reset prevention via jest.resetModules(false) in the config.
   (global as Record<string, unknown>).__PG_CONTAINER__ = container;
 }

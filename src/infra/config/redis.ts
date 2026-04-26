@@ -6,20 +6,26 @@ const MAX_RETRIES = 10;
 const BASE_RETRY_DELAY_MS = 1_000;
 const MAX_RETRY_DELAY_MS = 30_000;
 
+const REQUIRED_ENV = ["REDIS_PASSWORD", "REDIS_HOST", "REDIS_URL"] as const;
+
 let redisClient: Redis | null = null;
 let isReady = false;
 
 export function createRedisClient(): Redis {
   const url = process.env.REDIS_URL;
-
-  if (!url) {
-    throw new Error("REDIS_URL environment variable is not defined");
+  for (const key of REQUIRED_ENV) {
+    if (!process.env[key]) {
+      throw new Error(
+        `Missing required env var: ${key}. Redis connection refused.`,
+      );
+    }
   }
 
-  const client = new Redis(url, {
+  const client = new Redis(url!, {
     maxRetriesPerRequest: 3,
     enableReadyCheck: true,
     lazyConnect: true,
+    password: process.env.REDIS_PASSWORD,
     retryStrategy(attempt: number): number | null {
       if (attempt >= MAX_RETRIES) {
         logger.error("redis_retry_exhausted", {
@@ -147,5 +153,8 @@ export async function disconnectRedis(): Promise<void> {
 export async function getRedisServerTimeMs(): Promise<number> {
   const client = await getRedisClient();
   const [seconds, microseconds] = await client.time();
-  return parseInt(String(seconds), 10) * 1_000 + Math.floor(parseInt(String(microseconds)) / 1_000);
+  return (
+    parseInt(String(seconds), 10) * 1_000 +
+    Math.floor(parseInt(String(microseconds)) / 1_000)
+  );
 }

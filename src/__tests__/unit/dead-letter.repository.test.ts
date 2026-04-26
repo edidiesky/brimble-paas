@@ -1,9 +1,23 @@
+/**
+ * Unit tests: dead-letter.repository.ts
+ * Coverage: findByJobId, findUnresolved, create, resolve
+ * Pattern: mock getPool + mock cache client, assert DB query params and
+ *          cache behaviour independently.
+ */
 
 import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import { v4 as uuidv4 } from "uuid";
 
+//  Module mocks (must be before any import that uses them) 
+
 jest.mock("../../infra/db/pool");
 jest.mock("../../infra/cache/cache.client");
+// Redis client path: adjust if your redis.client.ts is not under infra/config/
+jest.mock("../../infra/config/redis.client", () => ({
+  getRedisClientSync: jest.fn(),
+  connectRedis: jest.fn(),
+  disconnectRedis: jest.fn(),
+}));
 jest.mock("../../infra/cache/cache.keys", () => ({
   CacheKeys: {
     deadLetter: (jobId: string) => `dead-letter:${jobId}`,
@@ -21,8 +35,10 @@ jest.mock("../../infra/cache/cache.keys", () => ({
 }));
 
 import { getPool } from "../../infra/db/pool";
-import * as cacheClient from "../../infra/config/redis";
+import * as cacheClient from "../../infra/cache/cache.client";
 import { deadLetterRepository } from "../../domains/dead-letter/dead-letter.repository";
+
+//  Typed mock helpers 
 
 const mockGetPool = getPool as jest.MockedFunction<typeof getPool>;
 const mockCacheGetJson = cacheClient.cacheGetJson as jest.MockedFunction<typeof cacheClient.cacheGetJson>;
@@ -32,7 +48,7 @@ const mockCacheDelByPattern = cacheClient.cacheDelByPattern as jest.MockedFuncti
 
 function makePoolQuery(rows: Record<string, unknown>[]) {
   return {
-    query: jest.fn().mockResolvedValue({ rows, rowCount: rows.length }),
+    query: jest.fn<()=> Promise<object>>().mockResolvedValue({ rows, rowCount: rows.length }),
     connect: jest.fn(),
   };
 }
@@ -232,7 +248,7 @@ describe("DeadLetterRepository", () => {
     it("does NOT invalidate cache when transaction client is passed", async () => {
       const row = makeDeadLetterRow();
       const txClient = {
-        query: jest.fn().mockResolvedValue({ rows: [row], rowCount: 1 }),
+        query: jest.fn<()=> Promise<object>>().mockResolvedValue({ rows: [row], rowCount: 1 }),
       };
 
       await deadLetterRepository.create(
@@ -247,6 +263,8 @@ describe("DeadLetterRepository", () => {
         txClient as never,
       );
 
+      // Cache invalidation must NOT happen inside a transaction - it happens
+      // post-COMMIT in the service layer
       expect(mockCacheDelByPattern).not.toHaveBeenCalled();
     });
   });
@@ -296,7 +314,7 @@ describe("DeadLetterRepository", () => {
     it("does NOT invalidate cache when transaction client is passed", async () => {
       const row = makeDeadLetterRow({ resolved_at: new Date() });
       const txClient = {
-        query: jest.fn().mockResolvedValue({ rows: [row], rowCount: 1 }),
+        query: jest.fn<()=> Promise<object>>().mockResolvedValue({ rows: [row], rowCount: 1 }),
       };
 
       await deadLetterRepository.resolve(

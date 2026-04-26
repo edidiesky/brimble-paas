@@ -1,12 +1,26 @@
 {
-  admin 0.0.0.0:2019
-  auto_https off
+    admin 0.0.0.0:2019
+    auto_https off
+    debug
+}
+
+(health) {
+    handle /caddy/health {
+        respond "ok" 200
+    }
 }
 
 :80 {
-  # Health check for caddy itself
-  handle /caddy/health {
-    respond "ok" 200
-  }
-  # /deploy/<deploymentId>/* -> host.docker.internal:<hostPort>
+    import health
+
+    handle /api/v1/* {
+        reverse_proxy api:3000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+        }
+    }
+}
+
+:8080 {
+    reverse_proxy grafana:3000
 }
