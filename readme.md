@@ -38,7 +38,7 @@ A miniature deployment platform that illustrate a little what Brimble does in pr
 ---
 
 ## Architecture
-![Architecture Diagram](image.png)
+![Architecture Diagram](./brimble-deploy/docs/screenshots/image.png)
 
 ### Pipeline flow
 
@@ -327,6 +327,14 @@ I followed a 70/20/10 distribution:
 ---
 
 ## Observability
+
+### HTTP Dashboard
+![HTTP Dashboard](./brimble-deploy/docs/screenshots/grafana%201.jpeg)
+![HTTP Latency](./brimble-deploy/docs/screenshots/grafana%202.jpeg)
+
+### Pipeline Dashboard
+![Pipeline Overview](./brimble-deploy/docs/screenshots/pipeline_1.jpeg)
+![Pipeline Errors and Phase Duration](./brimble-deploy/docs/screenshots/pipeline_2.jpeg)
 
 Grafana dashboards cover seven areas:
 
