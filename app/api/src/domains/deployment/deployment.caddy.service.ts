@@ -14,23 +14,43 @@ interface CaddyRoute {
   }>;
   handle: Array<{
     handler: string;
-    upstreams: Array<{ dial: string }>;
+    upstreams?: Array<{ dial: string }>;
+    routes?: Array<{
+      handle: Array<{
+        handler: string;
+        strip_path_prefix?: string;
+        upstreams?: Array<{ dial: string }>;
+      }>;
+    }>;
   }>;
 }
 
 class CaddyService {
-  private buildRoute(deploymentId: string, hostPort: number): CaddyRoute {
-    return {
-      "@id": `dep_${deploymentId}`,
-      match: [{ host: [`${deploymentId}.localhost`] }], 
-      handle: [
-        {
-          handler: "reverse_proxy",
-          upstreams: [{ dial: `host.docker.internal:${hostPort}` }],
-        },
-      ],
-    };
-  }
+private buildRoute(deploymentId: string, hostPort: number): CaddyRoute {
+  return {
+    "@id": `dep_${deploymentId}`,
+    match: [{ path: [`/deploy/${deploymentId}/*`] }],
+    handle: [
+      {
+        handler: "subroute",
+        routes: [
+          {
+            handle: [
+              {
+                handler: "rewrite",
+                strip_path_prefix: `/deploy/${deploymentId}`,
+              },
+              {
+                handler: "reverse_proxy",
+                upstreams: [{ dial: `host.docker.internal:${hostPort}` }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
 
 private buildDeploymentUrl(deploymentId: string): string {
   return `http://${deploymentId}.localhost`;
