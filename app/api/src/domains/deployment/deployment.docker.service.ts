@@ -8,6 +8,7 @@ import {
 } from "../../shared/utils/dockerContainerMetrics";
 import { trackError } from "../../shared/utils/metrics";
 import { docker } from "../../infra/docker/client";
+import { getPool } from "../../infra/db/pool";
 
 const logger = createLogger(SERVICE_NAME);
 
@@ -24,17 +25,38 @@ interface RunContainerOptions {
 }
 
 class DockerService {
-  async allocatePort(): Promise<number> {
-    const usedPorts = await deploymentRepository.findAllocatedPorts();
-    const usedSet = new Set(usedPorts);
+  async allocateHostPort(): Promise<number> {
+    const PORT_MIN = 30001;
+    const PORT_MAX = 32000;
 
-    for (let port = PORT_RANGE.MIN; port <= PORT_RANGE.MAX; port++) {
-      if (!usedSet.has(port)) return port;
+    const usedPorts = new Set(await this.findAllocatedPorts());
+
+    for (let port = PORT_MIN; port <= PORT_MAX; port++) {
+      if (usedPorts.has(port)) continue;
+      const isFree = await this.isPortFreeOnHost(port);
+      if (isFree) {
+        return port;
+      }
     }
 
-    throw new DockerError("No available ports in range", {
-      min: PORT_RANGE.MIN,
-      max: PORT_RANGE.MAX,
+    throw new Error("No free ports available in range 30001-32000");
+  }
+
+  async findAllocatedPorts(): Promise<number[]> {
+    const { rows } = await getPool().query(
+      `SELECT host_port FROM deployments 
+     WHERE host_port IS NOT NULL 
+     AND status NOT IN ('failed', 'stopped', 'failed')`,
+    );
+    return rows.map((r) => r.host_port as number);
+  }
+  private isPortFreeOnHost(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const { createServer } = require("net") as typeof import("net");
+      const server = createServer();
+      server.once("error", () => resolve(false));
+      server.once("listening", () => server.close(() => resolve(true)));
+      server.listen(port, "0.0.0.0");
     });
   }
 

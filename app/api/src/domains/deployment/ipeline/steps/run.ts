@@ -10,7 +10,7 @@ export async function runStep(
   try {
     log(`Allocating port for container`, "run");
 
-    const hostPort = await dockerService.allocatePort();
+    const hostPort = await dockerService.allocateHostPort();
 
     log(`Allocated port: ${hostPort}`, "run");
     log(`Starting container from image: ${imageTag}`, "run");
