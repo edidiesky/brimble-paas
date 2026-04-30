@@ -32,9 +32,9 @@ class CaddyService {
     };
   }
 
-  private buildDeploymentUrl(deploymentId: string): string {
-    return `http://localhost/deploy/${deploymentId}/`;
-  }
+private buildDeploymentUrl(deploymentId: string): string {
+  return `http://${deploymentId}.localhost`;
+}
 
   async registerRoute(
     deploymentId: string,
