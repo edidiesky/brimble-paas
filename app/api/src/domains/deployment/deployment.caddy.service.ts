@@ -8,7 +8,10 @@ const logger = createLogger(SERVICE_NAME);
 
 interface CaddyRoute {
   "@id": string;
-  match: Array<{ path: string[] }>;
+  match: Array<{
+    path?: string[];
+    host?: string[];
+  }>;
   handle: Array<{
     handler: string;
     upstreams: Array<{ dial: string }>;
@@ -19,7 +22,7 @@ class CaddyService {
   private buildRoute(deploymentId: string, hostPort: number): CaddyRoute {
     return {
       "@id": `dep_${deploymentId}`,
-      match: [{ path: [`/deploy/${deploymentId}/*`] }],
+      match: [{ host: [`${deploymentId}.localhost`] }], 
       handle: [
         {
           handler: "reverse_proxy",
@@ -37,11 +40,9 @@ class CaddyService {
     deploymentId: string,
     hostPort: number
   ): Promise<string> {
-    const routeId = `dep_${deploymentId}`;
     const route = this.buildRoute(deploymentId, hostPort);
 
     await this.removeRoute(deploymentId).catch(() => {
-      // Ignore -- route may not exist yet
     });
 
     try {
@@ -108,7 +109,6 @@ class CaddyService {
     } catch (err) {
       const axiosErr = err as AxiosError;
 
-      // 404 means route did not exist -- not an error
       if (axiosErr.response?.status === 404) {
         return;
       }

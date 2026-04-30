@@ -1,18 +1,9 @@
-/**
- * Unit tests: dead-letter.repository.ts
- * Coverage: findByJobId, findUnresolved, create, resolve
- * Pattern: mock getPool + mock cache client, assert DB query params and
- *          cache behaviour independently.
- */
 
 import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import { v4 as uuidv4 } from "uuid";
 
-//  Module mocks (must be before any import that uses them) 
-
 jest.mock("../../infra/db/pool");
 jest.mock("../../infra/cache/cache.client");
-// Redis client path: adjust if your redis.client.ts is not under infra/config/
 jest.mock("../../infra/config/redis.client", () => ({
   getRedisClientSync: jest.fn(),
   connectRedis: jest.fn(),

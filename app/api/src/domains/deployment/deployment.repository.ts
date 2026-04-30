@@ -7,8 +7,6 @@ import type { PoolClient } from "pg";
 import { v4 } from "uuid";
 
 const logger = createLogger(SERVICE_NAME);
-
-// Map snake_case DB row to camelCase interface
 function rowToDeployment(row: Record<string, unknown>): IDeployment {
   return {
     id: row.id as string,

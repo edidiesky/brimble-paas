@@ -211,7 +211,6 @@ services:
     ports:
       - "3000:3000"
       - "9464:9464"
-      - "9229:9229"
     env_file:
       - .env
     environment:

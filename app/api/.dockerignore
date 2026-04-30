@@ -1,12 +1,9 @@
-cd ~/brimble-paas
-cat > .dockerignore << 'EOF'
 node_modules
 dist
-.git
 .env
-.env.local
-.env.production
+.env.*
+!.env.sample
 *.log
-brimble-deploy
 coverage
-EOF
+src/__tests__
+.git

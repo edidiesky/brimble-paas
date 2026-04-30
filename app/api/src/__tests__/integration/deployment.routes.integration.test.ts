@@ -55,7 +55,6 @@ jest.mock("@/infra/cache/cache.client", () => ({
   cacheGet: jest.fn(async () => null),
   cacheSet: jest.fn(async () => undefined),
 }));
- 
 
 import { describe, it, expect, jest } from "@jest/globals";
 import request from "supertest";
@@ -370,3 +369,4 @@ describe("GET /api/v1/deployments/:id/logs (SSE)", () => {
     expect(firstData).toHaveProperty("phase");
   });
 });
+

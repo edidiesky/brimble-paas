@@ -380,8 +380,6 @@ Logs are shipped to Loki via Promtail which tails Docker container logs. Every l
 
 **Zero-downtime redeploys.** When a redeployment is triggered for an existing deployment, start the new container before stopping the old one. Update the Caddy route atomically once the new container passes a health check. The old container is stopped only after traffic is flowing to the new one.
 
-**docker-socket-proxy.** Replace the raw Docker socket mount with a proxy that whitelists only the specific Docker API calls the pipeline needs. Removes the effective root-on-host security risk from running the API container as root.
-
 **Nomad for orchestration.** For a production deployment across multiple Hetzner and DigitalOcean nodes, Nomad would replace the manual Docker container management. Each deployment becomes a Nomad job. Consul handles service discovery and health checking. The Caddy admin API integration stays the same - Nomad reports the allocated port, Caddy adds the route.
 
 ---
