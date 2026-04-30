@@ -2,7 +2,7 @@
   "users": [
     {
       "name": "brimble",
-      "password_hash": "Jdw4C0DmOibqzS6NOz16MBJR5n13kNa2XtWmT19PDvY57ktd",
+      "password_hash": "8feSYqv0hse86qRLyWjn9bjI2LHPYQ6rPZeiIHKbML2wfLeO",
       "hashing_algorithm": "rabbit_password_hashing_sha256",
       "tags": "administrator"
     }

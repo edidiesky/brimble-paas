@@ -253,7 +253,7 @@ Please kindly use bash for the below command
 
 ```bash
 docker run --rm rabbitmq:3.13-management-alpine \
-  rabbitmqctl hash_password YOUR_RABBITMQ_PASS
+  rabbitmqctl hash_password fe61ff5b4a2517e14c7a9f410d1fa77aea7decaaab98895d5fec23b2239c146a
 ```
 
 Open `brimble-deploy/rabbitmq/definitions.json`, find the `users` array, and replace the `password_hash` value with the output of that command. The plaintext password in `.env` and the hash in `definitions.json` must correspond.
