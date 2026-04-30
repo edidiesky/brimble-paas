@@ -4,7 +4,6 @@
 }
 
 :80 {
-  # Health check for Caddy itself
   handle /caddy/health {
     respond "ok" 200
   }

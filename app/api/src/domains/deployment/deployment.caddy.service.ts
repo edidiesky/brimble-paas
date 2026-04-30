@@ -80,11 +80,12 @@ private buildDeploymentUrl(deploymentId: string): string {
         });
       }
 
-      await axios.post(
-        `${CADDY_ADMIN_URL}/config/apps/http/servers/${serverKey}/routes`,
-        route,
-        { headers: { "Content-Type": "application/json" } }
-      );
+      
+await axios.post(
+  `${CADDY_ADMIN_URL}/config/apps/http/servers/${serverKey}/routes/0`,
+  route,
+  { headers: { "Content-Type": "application/json" } }
+);
 
       const url = this.buildDeploymentUrl(deploymentId);
 
